@@ -1,0 +1,15 @@
+mem_start equ 0x10000
+start:
+    lui r4, (prep mem_start .loop)
+    mov r1, 0
+    mov r2, 1
+.loop:
+    store r1, [rip + r4 + (fin mem_start)]
+    add r3, r1, r2
+    jb r3, r1, (rel .end)
+    mov r1, r2
+    mov r2, r3
+    jmp (rel .loop)
+    
+.end:
+    jmp (rel .end)

@@ -57,9 +57,8 @@ Any bits specified by neither the format nor the opcode should be zero.
     The ALU op to perform is given by bits 17 thru 19 with an offset of 24.
 
 - 0x14: Load Byte Relative (Format B)  
-    Compute an offset, add it onto the address of this instruction   
-    and load a byte from the resulting address into the destination register.  
-    The offset is computed as Immediate + Source0.
+    Compute an address as (RIP + Immediate + Source0)
+    and load a byte into the destination register.  
 
 - 0x15: Load Short Relative (Format B)  
     Perform the same operation as in 0x14, loading two bytes instead of one.
@@ -93,7 +92,6 @@ Any bits specified by neither the format nor the opcode should be zero.
     Load the immediate shifted to the left by 12 bits into the destination register.
 
 - 0x22: Jump Relative ( Format C)  
-    1B: Jump Relative Offset (Format B)  
     Store the address of the next instruction into the Destination register.  
     Then jump to (RIP + Immediate).
 
