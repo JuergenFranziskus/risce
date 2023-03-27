@@ -1,15 +1,107 @@
-mem_start equ 0x10000
 start:
-    lui r4, (prep mem_start .loop)
-    mov r1, 0
-    mov r2, 1
+    lui rsp, high stack_start
+    add rsp, low stack_start
+    call %prepare_divisors
+    mov r16, 0
+    mov r17, 1
 .loop:
-    store r1, [rip + r4 + (fin mem_start)]
-    add r3, r1, r2
-    jb r3, r1, (rel .end)
-    mov r1, r2
-    mov r2, r3
-    jmp (rel .loop)
-    
+    add r18, r16, r17
+    jb r18, r16, %.end
+    mov r1, r18
+    call %print_u32
+    mov r16, r17
+    mov r17, r18
+    jmp %.loop
 .end:
-    jmp (rel .end)
+    jmp %.end
+
+
+
+print_u32:
+    # Start of function, number to print is in r1
+    sub rsp, 16
+    store r16, [rsp]
+    store r17, [rsp + 4]
+    store r18, [rsp + 8]
+    store r31, [rsp + 12]
+    mov r16, r1 # The number that remains to be printed
+    lui r17, prep divisors $ + 4
+    lea r17, [rip + r17 + fin divisors] # The address into the divisors array
+    mov r18, 0 # Index into the divisor array
+.loop:
+    mov r1, 10
+    jnb r18, r1, %.end
+    
+    mov r1, r16
+    load r2, [r17]
+    call %divmod # We now have the digit in r1, the remaining number in r2
+    mov r16, r2
+    add r1, 48 # Make ascii digit
+    lui r3, prep screen $ + 4
+    store r1, [rip + r3 + fin screen]
+    add r17, 4
+    add r18, 1
+    jmp %.loop
+.end:
+    lui r3, prep screen $+8
+    mov r1, 10
+    store r1, [rip + r3 + fin screen]
+    load r31, [rsp + 12]
+    load r18, [rsp + 8]
+    load r17, [rsp + 4]
+    load r16, [rsp]
+    add rsp, 16
+    ret
+
+prepare_divisors:
+    mov r7, r31
+    lui r4, prep divisors $+4
+    lea r4, [rip + r4 + fin divisors]
+    add r4, 9 * 4
+    mov r5, 0
+    mov r6, 1
+.loop:
+    mov r1, 10
+    jnb r5, r1, %.end
+    
+    store r6, [r4]
+    sub r4, 4
+    add r5, 1
+    mov r1, r6
+    call %mul_ten
+    mov r6, r1
+    jmp %.loop
+.end:
+    mov r31, r7
+    ret
+
+
+divmod:
+    # Start of Function
+    # The divident (remainder) is in r1
+    # The divisor is in r2
+    mov r3, 0 # The quotient is in r3
+.loop:
+    jb r1, r2, %.end
+    sub r1, r2
+    add r3, 1
+    jmp %.loop
+.end:
+    mov r2, r1
+    mov r1, r3
+    ret
+
+mul_ten:
+    # Start of function, parameter is in r1
+    shl r2, r1, 3 # Multiply parameter by 8
+    shl r3, r1, 1 # Multiply parameter by 2
+    add r1, r2, r3 # 2x + 8x = 10x
+    ret
+
+
+mem_start equ 0x10000
+divisors equ mem_start
+
+stack_start equ mem_start + 0xFFFF
+
+screen equ 0x20000

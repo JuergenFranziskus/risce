@@ -80,9 +80,9 @@ Any bits specified by neither the format nor the opcode should be zero.
 - 0x1A: Load Word Offset (Format B)  
     Same operation as in 0x18, loading four bytes instead of one.
 
-- 0x1B: Jump Relative Offset (Format B)  
+- 0x1B: Jump Absolute Offset (Format B)  
     Store the address of the next instruction into the Destination register.  
-    Then jump to (RIP + Immediate + Source0).
+    Then jump to (Immediate + Source0).
 
 
 - 0x20: Load Immediate (Format C)  

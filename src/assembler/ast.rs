@@ -18,6 +18,7 @@ pub enum LineKind<'a> {
     Empty,
     Equ(Expr<'a>),
     Op(Mnemonic, Vec<Arg<'a>>),
+    DB(Vec<DBArg<'a>>),
 }
 impl LineKind<'_> {
     pub fn span(&self) -> Option<Span> {
@@ -25,6 +26,7 @@ impl LineKind<'_> {
             Self::Empty => None,
             Self::Equ(val) => Some(val.span),
             Self::Op(_, args) => Some(args.last()?.span),
+            Self::DB(args) => Some(args.last()?.span),
         }
     }
 }
@@ -36,9 +38,12 @@ pub enum Mnemonic {
     Lui,
     Jmp,
     Jal,
+    Call,
+    Ret,
     Branch(Condition),
     Store,
     Load,
+    Lea,
     Not,
     Neg,
     Add,
@@ -91,6 +96,20 @@ impl ArgKind<'_> {
 }
 
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DBArg<'a> {
+    pub span: Span,
+    pub kind: DBArgKind<'a>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DBArgKind<'a> {
+    Expression(Expr<'a>),
+    StringLiteral(&'a str),
+}
+
+
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Register(pub u8);
 
@@ -119,14 +138,30 @@ pub struct Expr<'a> {
     pub kind: ExprKind<'a>,
 }
 
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExprKind<'a> {
+    Unary(UnaryExpr, Box<Expr<'a>>),
+    Binary(BinaryExpr, Box<Expr<'a>>, Box<Expr<'a>>),
     Call(Function, Vec<Expr<'a>>),
     Paren(Box<Expr<'a>>),
     Identifier(Identifier<'a>),
     Decimal(&'a str),
     Hex(&'a str),
+    Here,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum BinaryExpr {
+    Add,
+    Sub,
+    Mul,
+    Div,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum UnaryExpr {
+    Relative,
+    Finish,
 }
 
 

@@ -28,11 +28,25 @@ pub enum TokenKind<'a> {
     Colon,
     #[token(",")]
     Comma,
+    #[token("$")]
+    Dollar,
+    #[token("%")]
+    Percent,
+    #[token("@")]
+    At,
     #[token("+")]
     Plus,
+    #[token("-")]
+    Minus,
+    #[token("*")]
+    Star,
+    #[token("/")]
+    Slash,
 
     #[token("equ")]
     Equ,
+    #[token("db")]
+    Db,
 
     #[token("byte")]
     Byte,
@@ -47,7 +61,10 @@ pub enum TokenKind<'a> {
     #[regex(r"[_a-zA-Z][_a-zA-Z0-9]*\.[_a-zA-Z0-9]+", split_identifier)]
     Identifier(Identifier<'a>),
 
-    #[regex(r"r[0-9]+")]
+    #[regex(r#""[^"]*""#)]
+    StringLiteral(&'a str),
+
+    #[regex(r"r[0-9]+|rsp")]
     Register(&'a str),
 
     #[regex(r"[0-9][_0-9]*")]
@@ -61,6 +78,7 @@ pub enum TokenKind<'a> {
 
     #[error]
     #[regex(r"[ \t]+", logos::skip)]
+    #[regex(r"#[^\n]*", logos::skip)]
     Error,
 }
 

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, str::FromStr};
 use num::{BigInt, Num, ToPrimitive, Signed};
-use super::{token::Identifier, ast::{Expr, Ast, Line, LineKind, Mnemonic, Arg, Register, ArgKind, MemSize, ExprKind, Function, Condition}};
+use super::{token::Identifier, ast::{Expr, Ast, Line, LineKind, Mnemonic, Arg, Register, ArgKind, MemSize, ExprKind, Function, Condition, BinaryExpr, UnaryExpr, DBArg, DBArgKind}};
 
 
 
@@ -47,6 +47,7 @@ impl<'a> CodeGen<'a> {
             LineKind::Empty => (),
             LineKind::Equ(e) => self.gen_equ(line.label, e),
             &LineKind::Op(mnemonic, ref args) => self.gen_op(mnemonic, args),
+            &LineKind::DB(ref args) => self.gen_db(args),
         }
     }
     fn process_line_label(&mut self, label: Option<Identifier<'a>>) {
@@ -71,9 +72,12 @@ impl<'a> CodeGen<'a> {
             Mnemonic::Lui => self.gen_lui(args),
             Mnemonic::Jmp => self.gen_jmp(args),
             Mnemonic::Jal => self.gen_jal(args),
+            Mnemonic::Call => self.gen_call(args),
+            Mnemonic::Ret => self.gen_ret(args),
             Mnemonic::Branch(op) => self.gen_branch(op, args),
             Mnemonic::Store => self.gen_store(args),
             Mnemonic::Load => self.gen_load(args),
+            Mnemonic::Lea => self.gen_lea(args),
             Mnemonic::Not => self.gen_not(args),
             Mnemonic::Neg => self.gen_neg(args),
             Mnemonic::Add => self.gen_bin_alu_op(args, ALU_ADD),
@@ -87,6 +91,20 @@ impl<'a> CodeGen<'a> {
             Mnemonic::Sar => self.gen_bin_alu_op(args, ALU_SAR),
             Mnemonic::Rol => self.gen_bin_alu_op(args, ALU_ROL),
             Mnemonic::Ror => self.gen_bin_alu_op(args, ALU_ROR),
+        }
+    }
+
+    fn gen_db(&mut self, args: &[DBArg<'a>]) {
+        for arg in args {
+            match &arg.kind {
+                &DBArgKind::StringLiteral(str) => self.bytes.extend(str.bytes()),
+                &DBArgKind::Expression(ref expr) => {
+                    let ctx = self.curr_ctx();
+                    let val = self.eval_expr(expr, ctx).unwrap();
+                    let val = val.to_u8().unwrap();
+                    self.bytes.push(val);
+                }
+            }
         }
     }
 
@@ -128,7 +146,7 @@ impl<'a> CodeGen<'a> {
             }
         }
         else if args.len() == 2 {
-            let ArgKind::Register(d) = args[0].kind else { panic!() };
+            let ArgKind::Register(d) = args[0].kind else { panic!("Expected register, found {:?}", args[0].kind) };
             if let ArgKind::Register(a) = args[1].kind {
                 self.gen_reg_reg_alu_op(d, d, a, op);
             }
@@ -207,15 +225,41 @@ impl<'a> CodeGen<'a> {
         self.bytes.extend(bytes);
     }
 
+    fn gen_call(&mut self, args: &[Arg<'a>]) {
+        let d = Register(31);
+        if args.len() == 2 {
+            let ArgKind::Register(a) = args[0].kind else { panic!() };
+            let ArgKind::Expression(e) = &args[1].kind else { panic!() };
+            self.gen_jump_absolute_offset(d, a, Some(e));
+        }
+        else if args.len() == 1 {
+            if let ArgKind::Register(a) = args[0].kind {
+                self.gen_jump_absolute_offset(d, a, None);
+            }
+            else if let ArgKind::Expression(e) = &args[0].kind {
+                self.gen_jump_relative(d, e);
+            }
+            else {
+                panic!()
+            }
+        }
+        else {
+            panic!()
+        }
+    }
+    fn gen_ret(&mut self, args: &[Arg<'a>]) {
+        assert_eq!(args.len(), 0);
+        self.gen_jump_absolute_offset(Register(0), Register(31), None)
+    }
     fn gen_jmp(&mut self, args: &[Arg<'a>]) {
         if args.len() == 2 {
             let ArgKind::Register(a) = args[0].kind else { panic!() };
             let ArgKind::Expression(e) = &args[1].kind else { panic!() };
-            self.gen_jump_relative_offset(Register(0), a, Some(e));
+            self.gen_jump_absolute_offset(Register(0), a, Some(e));
         }
         else if args.len() == 1 {
             if let ArgKind::Register(a) = args[0].kind {
-                self.gen_jump_relative_offset(Register(0), a, None);
+                self.gen_jump_absolute_offset(Register(0), a, None);
             }
             else if let ArgKind::Expression(e) = &args[0].kind {
                 self.gen_jump_relative(Register(0), e);
@@ -233,11 +277,11 @@ impl<'a> CodeGen<'a> {
         if args.len() == 3 {
             let ArgKind::Register(a) = args[1].kind else { panic!() };
             let ArgKind::Expression(e) = &args[2].kind else { panic!() };
-            self.gen_jump_relative_offset(d, a, Some(e));
+            self.gen_jump_absolute_offset(d, a, Some(e));
         }
         else if args.len() == 2 {
             if let ArgKind::Register(a) = args[1].kind {
-                self.gen_jump_relative_offset(d, a, None);
+                self.gen_jump_absolute_offset(d, a, None);
             }
             else if let ArgKind::Expression(e) = &args[1].kind {
                 self.gen_jump_relative(d, e);
@@ -250,7 +294,7 @@ impl<'a> CodeGen<'a> {
             panic!()
         }
     }
-    fn gen_jump_relative_offset(&mut self, d: Register, a: Register, e: Option<&Expr<'a>>) {
+    fn gen_jump_absolute_offset(&mut self, d: Register, a: Register, e: Option<&Expr<'a>>) {
         let opcode = 0x1B;
         let regs = encode_registers(Some(d), Some(a), None);
         if let Some(e) = e {
@@ -299,6 +343,25 @@ impl<'a> CodeGen<'a> {
         self.bytes.extend(bytes);
     }
 
+    fn gen_lea(&mut self, args: &[Arg<'a>]) {
+        assert!(args.len() == 2);
+        let ArgKind::Register(d) = args[0].kind else { panic!() };
+        let ArgKind::Memory(mem) = &args[1].kind else { panic!() };
+
+        let a = mem.base.unwrap_or(Register(0));
+        let offset = mem.offset.as_ref();
+        let is_relative = mem.rip_relative;
+        assert!(is_relative);
+        let regs = encode_registers(Some(d), Some(a), None);
+        if let Some(val) = offset {
+            self.reloc_b(val);
+        }
+        let opcode = 0x17;
+
+        let instruction = opcode | regs;
+        let bytes = instruction.to_le_bytes();
+        self.bytes.extend(bytes);
+    }
     fn gen_store(&mut self, args: &[Arg<'a>]) {
         assert!(args.len() == 2);
         let ArgKind::Register(b) = args[0].kind else { panic!() };
@@ -354,8 +417,9 @@ impl<'a> CodeGen<'a> {
         self.bytes.extend(bytes);
     }
 
-    fn eval_expr(&self, e: &Expr<'a>, ctx: ExprCtx<'a>) -> Option<BigInt> {
+    fn eval_expr(&self, e: &Expr, ctx: ExprCtx) -> Option<BigInt> {
         match &e.kind {
+            &ExprKind::Here => Some(ctx.address.into()),
             &ExprKind::Identifier(i) => {
                 let ident = make_global(ctx.last_global, i);
                 self.labels.get(&ident).cloned()
@@ -373,8 +437,29 @@ impl<'a> CodeGen<'a> {
                     Function::Fin =>  calculate_fin(args , ctx),
                 })
             }
+            &ExprKind::Binary(op, ref a, ref b) => self.eval_binary_expr(op, a, b, ctx),
+            &ExprKind::Unary(op, ref a) => self.eval_unary_expr(op, a, ctx),
         }
     }
+    fn eval_binary_expr(&self, op: BinaryExpr, a: &Expr, b: &Expr, ctx: ExprCtx) -> Option<BigInt> {
+        let a = self.eval_expr(a, ctx)?;
+        let b = self.eval_expr(b, ctx)?;
+
+        Some(match op {
+            BinaryExpr::Add => a + b,
+            BinaryExpr::Sub => a - b,
+            BinaryExpr::Mul => a * b,
+            BinaryExpr::Div => a / b,
+        })
+    }
+    fn eval_unary_expr(&self, op: UnaryExpr, a: &Expr, ctx: ExprCtx) -> Option<BigInt> {
+        let a = self.eval_expr(a, ctx)?;
+        match op {
+            UnaryExpr::Relative => calculate_rel(vec!(a), ctx).into(),
+            UnaryExpr::Finish => calculate_fin(vec!(a), ctx).into(),
+        }
+    }
+
     fn curr_ctx(&self) -> ExprCtx<'a> {
         ExprCtx {
             address: self.bytes.len() as u32,
@@ -529,7 +614,7 @@ impl RelocKind {
                 assert!(immediate >= -2048 && immediate <= 2047, "{immediate} does not fit into 12 bits");
                 let value = as_bits & 0xFFFFFF;
                 let low = (value & 0b11111) << 7;
-                let high = (value & !0b11111) << (25 - 7);
+                let high = (value & !0b11111) << (25 - 5);
                 low | high
             }
         }
