@@ -1,4 +1,6 @@
 start:
+    call %load_program # Program first needs to be loaded from rom into ram so we can access unaligned data
+
     lui rsp, high stack_start
     add rsp, low stack_start
     call %prepare_divisors
@@ -13,8 +15,49 @@ start:
     mov r17, r18
     jmp %.loop
 .end:
-    jmp %.end
+    call %say_goodbye
+.halt:
+    lui r1, prep halt_key $+4
+    store r0, [rip + r1 + fin halt_key]
 
+
+load_program:
+    mov r1, 0
+    mov r5, program_end
+    lui r2, high 0x10000
+    add r2, low 0x10000
+.loop:
+    jnb r1, r5, %.end
+    add r3, r1, r2
+    load r4, [r1]
+    store r4, [r3]
+    add r1, 4
+    jmp %.loop
+.end:
+    store r0, [0] # This write will trigger the memory map to change, making ram go from 0 to 0x10000
+    # This is fine, since the program was just copied to ram.
+    # Executions should continue as normal
+    ret
+
+
+say_goodbye:
+    mov r1, 0
+    mov r2, length
+    lui r5, high terminal
+    add r5, low terminal
+.loop:
+    jnb r1, r2, %.end
+    load r3, byte [rip + r1 + %message]
+    store r3, byte [r5]
+    add r1, 1
+    jmp %.loop
+.end:
+    mov r3, 10
+    store r3, byte [r5]
+    ret
+
+message db "All done ^^"
+length equ $ - message
 
 
 print_u32:
@@ -37,15 +80,15 @@ print_u32:
     call %divmod # We now have the digit in r1, the remaining number in r2
     mov r16, r2
     add r1, 48 # Make ascii digit
-    lui r3, prep screen $ + 4
-    store r1, [rip + r3 + fin screen]
+    lui r3, prep terminal $ + 4
+    store r1, [rip + r3 + fin terminal]
     add r17, 4
     add r18, 1
     jmp %.loop
 .end:
-    lui r3, prep screen $+8
+    lui r3, prep terminal $+8
     mov r1, 10
-    store r1, [rip + r3 + fin screen]
+    store r1, [rip + r3 + fin terminal]
     load r31, [rsp + 12]
     load r18, [rsp + 8]
     load r17, [rsp + 4]
@@ -99,9 +142,10 @@ mul_ten:
     ret
 
 
-mem_start equ 0x10000
-divisors equ mem_start
+program_end equ $
 
-stack_start equ mem_start + 0xFFFF
 
-screen equ 0x20000
+divisors equ $
+stack_start equ 0x10000
+terminal equ 0x10000
+halt_key equ terminal + 2

@@ -145,7 +145,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         LineKind::Op(mnemonic, args)
     }
     fn parse_mnemonic(&mut self) -> Mnemonic {
-        let TokenKind::Identifier(name) = self.curr().kind else { panic!() };
+        let TokenKind::Identifier(name) = self.curr().kind else { panic!("Expected mnemonic, found {:?}", self.curr()) };
         let Some(global) = name.global else { panic!("Could not extract mnemonic from {:?}", self.curr()) };
         assert!(name.local.is_none());
         self.next();
