@@ -67,7 +67,7 @@ pub enum TokenKind<'a> {
     #[regex(r"r[0-9]+|rsp")]
     Register(&'a str),
 
-    #[regex(r"[0-9][_0-9]*")]
+    #[regex(r"-?[0-9][_0-9]*")]
     Decimal(&'a str),
 
     #[regex(r"0x[0-9a-fA-F][_0-9a-fA-F]*")]

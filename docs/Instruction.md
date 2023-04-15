@@ -108,7 +108,7 @@ Any bits specified by neither the format nor the opcode should be zero.
 
 
 - 0x33: Store Byte Offset (Format D)  
-    Compute an address and store the lowest byte of Source0 into the resulting address.  
+    Compute an address and store the lowest byte of Source1 into the resulting address.  
     The address is computed as in 0x18.
 
 - 0x34: Store Short Offset (Format D)  

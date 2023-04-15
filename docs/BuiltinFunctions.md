@@ -21,7 +21,7 @@ If the second parameter is not present, it is assumed to be the current line's a
 Prep is a function that combines the high and rel functions for convenience.  
 It has two forms:
 - prep x y = high (rel x y)
-- prep x = high (rel x)
+- prep x = high (rel x $+4)
 
 # Fin
 Fin is the same as prep, except with low instead of high:

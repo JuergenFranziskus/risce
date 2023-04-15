@@ -57,6 +57,9 @@ pub enum Mnemonic {
     Sar,
     Rol,
     Ror,
+
+    Enter,
+    Leave,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -112,6 +115,14 @@ pub enum DBArgKind<'a> {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Register(pub u8);
+impl Register {
+    pub fn rsp() -> Register {
+        Register(30)
+    }
+    pub fn rbp() -> Register {
+        Register(29)
+    }
+}
 
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -161,7 +172,6 @@ pub enum BinaryExpr {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum UnaryExpr {
     Relative,
-    Finish,
 }
 
 

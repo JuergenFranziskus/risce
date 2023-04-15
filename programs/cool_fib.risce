@@ -1,6 +1,4 @@
 start:
-    call %load_program # Program first needs to be loaded from rom into ram so we can access unaligned data
-
     lui rsp, high stack_start
     add rsp, low stack_start
     call %prepare_divisors
@@ -17,39 +15,18 @@ start:
 .end:
     call %say_goodbye
 .halt:
-    lui r1, prep halt_key $+4
-    store r0, [rip + r1 + fin halt_key]
-
-
-load_program:
-    mov r1, 0
-    mov r5, program_end
-    lui r2, high 0x10000
-    add r2, low 0x10000
-.loop:
-    jnb r1, r5, %.end
-    add r3, r1, r2
-    load r4, [r1]
-    store r4, [r3]
-    add r1, 4
-    jmp %.loop
-.end:
-    store r0, [0] # This write will trigger the memory map to change, making ram go from 0 to 0x10000
-    # This is fine, since the program was just copied to ram.
-    # Executions should continue as normal
-    ret
+    jmp %.halt
 
 
 say_goodbye:
     mov r1, 0
     mov r2, length
-    lui r5, high terminal
-    add r5, low terminal
+    mov r5, terminal
 .loop:
     jnb r1, r2, %.end
     load r3, byte [rip + r1 + %message]
-    store r3, byte [r5]
     add r1, 1
+    store r3, byte [r5]
     jmp %.loop
 .end:
     mov r3, 10
@@ -62,11 +39,7 @@ length equ $ - message
 
 print_u32:
     # Start of function, number to print is in r1
-    sub rsp, 16
-    store r16, [rsp]
-    store r17, [rsp + 4]
-    store r18, [rsp + 8]
-    store r31, [rsp + 12]
+    enter r16, r17, r18, r31
     mov r16, r1 # The number that remains to be printed
     lui r17, prep divisors $ + 4
     lea r17, [rip + r17 + fin divisors] # The address into the divisors array
@@ -86,19 +59,15 @@ print_u32:
     add r18, 1
     jmp %.loop
 .end:
-    lui r3, prep terminal $+8
     mov r1, 10
+    lui r3, prep terminal
     store r1, [rip + r3 + fin terminal]
-    load r31, [rsp + 12]
-    load r18, [rsp + 8]
-    load r17, [rsp + 4]
-    load r16, [rsp]
-    add rsp, 16
+    leave r16, r17, r18, r31
     ret
 
 prepare_divisors:
     mov r7, r31
-    lui r4, prep divisors $+4
+    lui r4, prep divisors
     lea r4, [rip + r4 + fin divisors]
     add r4, 9 * 4
     mov r5, 0
@@ -143,9 +112,9 @@ mul_ten:
 
 
 program_end equ $
-
-
 divisors equ $
-stack_start equ 0x10000
-terminal equ 0x10000
-halt_key equ terminal + 2
+
+
+
+stack_start equ 0x10000 * 4 # The stack starts at the very end of ram
+terminal equ -1 # The terminal is at the very last address

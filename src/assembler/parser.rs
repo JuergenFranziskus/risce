@@ -183,6 +183,8 @@ impl<'a, 'b> Parser<'a, 'b> {
             "sar" => Mnemonic::Sar,
             "rol" => Mnemonic::Rol,
             "ror" => Mnemonic::Ror,
+            "enter" => Mnemonic::Enter,
+            "leave" => Mnemonic::Leave,
             a => panic!("{a} is not an instruction mnemonic"),
         }
     }
@@ -315,7 +317,6 @@ impl<'a, 'b> Parser<'a, 'b> {
         let mut lhs = {
             let unary_op = match self.curr().kind {
                 TokenKind::Percent => Some(UnaryExpr::Relative),
-                TokenKind::At => Some(UnaryExpr::Finish),
                 _ => None,
             };
             if let Some(op) = unary_op {
@@ -472,7 +473,7 @@ impl<'a, 'b> Parser<'a, 'b> {
 fn prefix_binding_power(op: UnaryExpr) -> ((), i16) {
     use UnaryExpr::*;
     match op {
-        Relative | Finish => ((), 1001)
+        Relative => ((), 1001)
     }
 }
 

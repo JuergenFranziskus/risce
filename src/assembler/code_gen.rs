@@ -91,6 +91,8 @@ impl<'a> CodeGen<'a> {
             Mnemonic::Sar => self.gen_bin_alu_op(args, ALU_SAR),
             Mnemonic::Rol => self.gen_bin_alu_op(args, ALU_ROL),
             Mnemonic::Ror => self.gen_bin_alu_op(args, ALU_ROR),
+            Mnemonic::Enter => self.gen_enter(args),
+            Mnemonic::Leave => self.gen_leave(args),
         }
     }
 
@@ -185,6 +187,10 @@ impl<'a> CodeGen<'a> {
         self.bytes.extend(bytes);
     }
     fn gen_reg_imm_alu_op(&mut self, d: Register, a: Register, imm: &Expr<'a>, op: u8) {
+        self.reloc_b(imm);
+        self.gen_reg_imm_alu_op_prime(d, a, 0, op);
+    }
+    fn gen_reg_imm_alu_op_prime(&mut self, d: Register, a: Register, imm: i32, op: u8) {
         debug_assert!(op < 32);
         let op_bits = (op as u32 & 0b111) << 17;
         let opcode = match op {
@@ -195,9 +201,9 @@ impl<'a> CodeGen<'a> {
             _ => unreachable!()
         };
         let regs = encode_registers(Some(d), Some(a), None);
-        self.reloc_b(imm);
+        let immediate = RelocKind::B.encode_immediate(imm);
         
-        let instruction = regs | opcode | op_bits;
+        let instruction = regs | opcode | op_bits | immediate;
         let bytes = instruction.to_le_bytes();
         self.bytes.extend(bytes);
     }
@@ -372,6 +378,13 @@ impl<'a> CodeGen<'a> {
         let is_relative = mem.rip_relative;
         let size = mem.size.unwrap_or(MemSize::Word);
 
+        if let Some(val) = offset {
+            self.reloc_d(val);
+        }
+        
+        self.gen_store_prime(a, b, 0, is_relative, size);
+    }
+    fn gen_store_prime(&mut self, a: Register, b: Register, offset: i32, is_relative: bool, size: MemSize) {
         let opcode = match (is_relative, size) {
             (true, MemSize::Byte) => 0x30,
             (true, MemSize::Short) => 0x31,
@@ -381,11 +394,9 @@ impl<'a> CodeGen<'a> {
             (false, MemSize::Word) => 0x35,
         };
         let regs = encode_registers(None, Some(a), Some(b));
-        if let Some(val) = offset {
-            self.reloc_d(val);
-        }
+        let offset = RelocKind::D.encode_immediate(offset);
         
-        let instruction = opcode | regs;
+        let instruction = opcode | regs | offset;
         let bytes = instruction.to_le_bytes();
         self.bytes.extend(bytes);
     }
@@ -399,6 +410,14 @@ impl<'a> CodeGen<'a> {
         let is_relative = mem.rip_relative;
         let size = mem.size.unwrap_or(MemSize::Word);
 
+
+        if let Some(val) = offset {
+            self.reloc_b(val);
+        }
+
+        self.gen_load_prime(d, a, 0, is_relative, size);
+    }
+    fn gen_load_prime(&mut self, d: Register, a: Register, offset: i32, is_relative: bool, size: MemSize) {
         let opcode = match (is_relative, size) {
             (true, MemSize::Byte) => 0x14,
             (true, MemSize::Short) => 0x15,
@@ -408,14 +427,67 @@ impl<'a> CodeGen<'a> {
             (false, MemSize::Word) => 0x1A,
         };
         let regs = encode_registers(Some(d), Some(a), None);
-        if let Some(val) = offset {
-            self.reloc_b(val);
-        }
+        let offset = RelocKind::B.encode_immediate(offset);
         
-        let instruction = opcode | regs;
+        let instruction = opcode | regs | offset;
         let bytes = instruction.to_le_bytes();
         self.bytes.extend(bytes);
     }
+
+    fn gen_enter(&mut self, args: &[Arg<'a>]) {
+        let mut registers = Vec::with_capacity(32);
+        let mut immediate = None;
+
+        for arg in args {
+            if immediate.is_some() {
+                panic!();
+            }
+
+            match &arg.kind {
+                &ArgKind::Register(reg) => registers.push(reg),
+                ArgKind::Expression(e) => immediate = Some(self.eval_expr(e, self.curr_ctx()).unwrap()),
+                ArgKind::Memory(_) => panic!(),
+            }
+        }
+        let registers = if registers.is_empty() { DEFAULT_PUSH_REGS } else { &registers };
+
+
+        let bytes = immediate.map(|i| i.to_i32().unwrap()).unwrap_or(0) + registers.len() as i32 * 4;
+        let bytes = bytes + 4; // Also always save rbp
+        
+        self.gen_reg_imm_alu_op_prime(Register::rsp(), Register::rsp(), bytes, ALU_SUB); // Allocate stack space
+        self.gen_store_prime(Register::rsp(), Register::rbp(), bytes-4, false, MemSize::Word); // Save the old base pointer
+        self.gen_reg_imm_alu_op_prime(Register::rbp(), Register::rsp(), bytes-4, ALU_ADD); // Copy rsp to rbp
+
+        for (i, &reg) in registers.into_iter().enumerate() {
+            let i = i as i32;
+            let offset = -i * 4 - 4;
+            self.gen_store_prime(Register::rbp(), reg, offset, false, MemSize::Word);
+        }
+    }
+    fn gen_leave(&mut self, args: &[Arg<'a>]) {
+        let mut registers = Vec::with_capacity(32);
+        for arg in args {
+            match &arg.kind {
+                &ArgKind::Register(reg) => registers.push(reg),
+                ArgKind::Expression(_) => panic!(),
+                ArgKind::Memory(_) => panic!(),
+            }
+        }
+        let registers = if registers.is_empty() { DEFAULT_PUSH_REGS } else { &registers };
+
+        
+        for (i, &reg) in registers.into_iter().enumerate() {
+            let i = i as i32;
+            let offset = -i * 4 - 4;
+            self.gen_load_prime(reg, Register::rbp(), offset, false, MemSize::Word);
+        }
+
+        self.gen_reg_reg_alu_op(Register::rsp(), Register::rbp(), Register(0), ALU_ADD); // Copy rbp to rsp
+        self.gen_load_prime(Register::rbp(), Register::rsp(), 0, false, MemSize::Word);
+        self.gen_reg_imm_alu_op_prime(Register::rsp(), Register::rsp(), 4, ALU_ADD);
+    }
+
 
     fn eval_expr(&self, e: &Expr, ctx: ExprCtx) -> Option<BigInt> {
         match &e.kind {
@@ -456,7 +528,6 @@ impl<'a> CodeGen<'a> {
         let a = self.eval_expr(a, ctx)?;
         match op {
             UnaryExpr::Relative => calculate_rel(vec!(a), ctx).into(),
-            UnaryExpr::Finish => calculate_fin(vec!(a), ctx).into(),
         }
     }
 
@@ -504,6 +575,22 @@ const ALU_SAR: u8 = 11;
 const ALU_ROL: u8 = 12;
 const ALU_ROR: u8 = 13;
 
+
+static DEFAULT_PUSH_REGS: &[Register] = &[
+    Register(16),
+    Register(17),
+    Register(18),
+    Register(19),
+    Register(20),
+    Register(21),
+    Register(22),
+    Register(23),
+    Register(24),
+    Register(25),
+    Register(26),
+    Register(27),
+    Register(28),
+];
 
 fn make_global<'a>(globalizer: Option<&'a str>, mut label: Identifier<'a>) -> Identifier<'a> {
     let global = match (globalizer, label.global) {
@@ -575,7 +662,13 @@ fn calculate_rel(mut args: Vec<BigInt>, ctx: ExprCtx) -> BigInt {
     let relative = to_rebase - base;
     relative
 }
-fn calculate_prep(args: Vec<BigInt>, ctx: ExprCtx) -> BigInt {
+fn calculate_prep(mut args: Vec<BigInt>, ctx: ExprCtx) -> BigInt {
+    if args.len() == 1 {
+        let second_arg = BigInt::from(ctx.address) + 4;
+        args.push(second_arg)
+    }
+
+
     let rel = calculate_rel(args, ctx);
     get_low_high(rel).1
 }
