@@ -1,5 +1,5 @@
-use crate::assembler::ast::{LineKind, Condition};
-use super::{token::{Token, TokenKind}, ast::{Ast, Line, Expr, Mnemonic, Arg, Register, ArgKind, MemArg, ExprKind, Function, MemSize, BinaryExpr, UnaryExpr, DBArg, DBArgKind}, span::Span};
+use crate::assembler::ast::{LineKind, Condition, Relocation};
+use super::{token::{Token, TokenKind, Identifier}, ast::{Ast, Line, Expr, Mnemonic, Arg, Register, ArgKind, MemArg, ExprKind, Function, MemSize, BinaryExpr, DBArg, DBArgKind}, span::Span};
 
 
 
@@ -51,6 +51,8 @@ impl<'a, 'b> Parser<'a, 'b> {
             kind = match self.curr().kind {
                 TokenKind::Equ => self.parse_equ(),
                 TokenKind::Db => self.parse_db(),
+                TokenKind::ResW => self.parse_resw(),
+                TokenKind::Section => self.parse_section(),
                 _ => self.parse_op(),
             };
         }
@@ -82,12 +84,16 @@ impl<'a, 'b> Parser<'a, 'b> {
             self.peek_is_token(1, TokenKind::Equ)
                 || self.peek_is_token(1, TokenKind::Db)
                 || self.peek_is_token(1, TokenKind::Colon)
+                || self.peek_is_token(1, TokenKind::ResW)
+                || self.peek_is_token(1, TokenKind::Section)
         )
     }
     fn parse_equ(&mut self) -> LineKind<'a> {
         self.consume_token(TokenKind::Equ);
+        let label = self.parse_identifier();
+        assert!(label.global.is_some() && label.local.is_none());
         let val = self.parse_expr();
-        LineKind::Equ(val)
+        LineKind::Equ(label.global.unwrap(), val)
     }
     fn parse_db(&mut self) -> LineKind<'a> {
         self.consume_token(TokenKind::Db);
@@ -126,6 +132,17 @@ impl<'a, 'b> Parser<'a, 'b> {
                 }
             }
         }
+    }
+    fn parse_resw(&mut self) -> LineKind<'a> {
+        self.consume_token(TokenKind::ResW);
+        let bytes = self.parse_expr();
+        LineKind::ResW(bytes)
+    }
+    fn parse_section(&mut self) -> LineKind<'a> {
+        self.consume_token(TokenKind::Section);
+        let name = self.parse_identifier();
+        assert!(name.global.is_some() && name.local.is_none());
+        LineKind::Section(name.global.unwrap())
     }
     fn parse_op(&mut self) -> LineKind<'a> {
         let mnemonic = self.parse_mnemonic();
@@ -300,9 +317,6 @@ impl<'a, 'b> Parser<'a, 'b> {
         let func = match global {
             "low" => Function::Low,
             "high" => Function::High,
-            "rel" => Function::Rel,
-            "prep" => Function::Prep,
-            "fin" => Function::Fin,
             _ => return None,
         };
         self.next();
@@ -314,26 +328,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         self.parse_expr_bp_prime(i16::MIN)
     }
     fn parse_expr_bp_prime(&mut self, min_bp: i16) -> Expr<'a> {
-        let mut lhs = {
-            let unary_op = match self.curr().kind {
-                TokenKind::Percent => Some(UnaryExpr::Relative),
-                _ => None,
-            };
-            if let Some(op) = unary_op {
-                let start = self.curr().span;
-                self.next();
-                let ((), r_bp) = prefix_binding_power(op);
-                let rhs = self.parse_expr_bp_prime(r_bp);
-                let span = Span::merge(start, rhs.span);
-                Expr {
-                    span,
-                    kind: ExprKind::Unary(op, rhs.into())
-                }
-            }
-            else {
-                self.parse_leaf_expr()
-            }
-        };
+        let mut lhs = self.parse_leaf_expr();
     
     
         while !self.at_end() {
@@ -369,7 +364,6 @@ impl<'a, 'b> Parser<'a, 'b> {
             TokenKind::Hex(_) => self.parse_hex_expr(),
             TokenKind::Identifier(_) => self.parse_ident_expr(),
             TokenKind::OpenParen => self.parse_paren_expr(),
-            TokenKind::Dollar => self.parse_here_expr(),
             _ => panic!("Cannot parse leaf expression at {:?}", self.curr()),
         }
     }
@@ -393,11 +387,25 @@ impl<'a, 'b> Parser<'a, 'b> {
     }
     fn parse_ident_expr(&mut self) -> Expr<'a> {
         let span = self.curr().span;
-        let TokenKind::Identifier(name) = self.curr().kind else { panic!() };
-        self.next();
+        let name = self.parse_identifier();
+        let mut relocation = None;
+        if self.is_token(TokenKind::At) {
+            self.next();
+            let reloc_name = self.parse_identifier();
+            assert!(reloc_name.global.is_some() && reloc_name.local.is_none());
+            let reloc_name = reloc_name.global.unwrap();
+            relocation = Some(match reloc_name {
+                "REL" => Relocation::REL,
+                "LOW" => Relocation::LOW,
+                "HIGH" => Relocation::HIGH,
+                _ => panic!()
+            });
+        }
+
+
         Expr {
             span,
-            kind: ExprKind::Identifier(name)
+            kind: ExprKind::Identifier(name, relocation)
         }
     }
     fn parse_paren_expr(&mut self) -> Expr<'a> {
@@ -414,13 +422,12 @@ impl<'a, 'b> Parser<'a, 'b> {
             kind: ExprKind::Paren(Box::new(value)),
         }
     }
-    fn parse_here_expr(&mut self) -> Expr<'a> {
-        let span = self.curr().span;
-        self.consume_token(TokenKind::Dollar);
-        Expr {
-            span,
-            kind: ExprKind::Here
-        }
+
+
+    fn parse_identifier(&mut self) -> Identifier<'a> {
+        let TokenKind::Identifier(name) = self.curr().kind else { panic!() };
+        self.next();
+        name
     }
 
     fn ends_applicative_expr(&self) -> bool {
@@ -437,9 +444,11 @@ impl<'a, 'b> Parser<'a, 'b> {
 
         global == ident
     }
-    fn consume_token(&mut self, kind: TokenKind) {
+    fn consume_token(&mut self, kind: TokenKind) -> Span {
         assert!(self.is_token(kind), "Expected {kind:?}, found {:?}", self.try_curr());
+        let span = self.curr().span;
         self.next();
+        span
     }
     fn is_identifier(&self) -> bool {
         matches!(self.try_curr().map(|t| t.kind), Some(TokenKind::Identifier(_)))
@@ -470,12 +479,6 @@ impl<'a, 'b> Parser<'a, 'b> {
 }
 
 
-fn prefix_binding_power(op: UnaryExpr) -> ((), i16) {
-    use UnaryExpr::*;
-    match op {
-        Relative => ((), 1001)
-    }
-}
 
 fn infix_binding_power(op: BinaryExpr) -> (i16, i16) {
     use BinaryExpr::*;

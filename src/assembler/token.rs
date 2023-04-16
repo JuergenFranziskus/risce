@@ -1,5 +1,6 @@
 use super::span::Span;
 use logos::{Logos, Lexer};
+use serde_derive::*;
 
 pub fn lex(src: &str) -> Vec<Token> {
     TokenKind::lexer(src).spanned()
@@ -30,8 +31,6 @@ pub enum TokenKind<'a> {
     Comma,
     #[token("$")]
     Dollar,
-    #[token("%")]
-    Percent,
     #[token("@")]
     At,
     #[token("+")]
@@ -43,6 +42,10 @@ pub enum TokenKind<'a> {
     #[token("/")]
     Slash,
 
+    #[token("section")]
+    Section,
+    #[token("resw")]
+    ResW,
     #[token("equ")]
     Equ,
     #[token("db")]
@@ -84,9 +87,18 @@ pub enum TokenKind<'a> {
 
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize)]
 pub struct Identifier<'a> {
     pub global: Option<&'a str>,
     pub local: Option<&'a str>,
+}
+impl<'a> Identifier<'a> {
+    pub(crate) fn global(arg: &'a str) -> Self {
+        Self {
+            global: Some(arg),
+            local: None,
+        }
+    }
 }
 
 fn split_identifier<'a>(lexer: &'_ mut Lexer<'a, TokenKind<'a>>) -> Identifier<'a> {

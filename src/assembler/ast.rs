@@ -1,4 +1,4 @@
-use super::{span::Span, token::Identifier};
+use super::{span::Span, token::Identifier, object_file::{RelocKind, RelocSlice}};
 
 
 #[derive(Clone, Debug)]
@@ -16,17 +16,21 @@ pub struct Line<'a> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LineKind<'a> {
     Empty,
-    Equ(Expr<'a>),
+    Equ(&'a str, Expr<'a>),
     Op(Mnemonic, Vec<Arg<'a>>),
     DB(Vec<DBArg<'a>>),
+    ResW(Expr<'a>),
+    Section(&'a str),
 }
 impl LineKind<'_> {
     pub fn span(&self) -> Option<Span> {
         match self {
             Self::Empty => None,
-            Self::Equ(val) => Some(val.span),
+            Self::Equ(_, val) => Some(val.span),
             Self::Op(_, args) => Some(args.last()?.span),
             Self::DB(args) => Some(args.last()?.span),
+            Self::ResW(e) => Some(e.span),
+            Self::Section(_) => None,
         }
     }
 }
@@ -151,14 +155,12 @@ pub struct Expr<'a> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExprKind<'a> {
-    Unary(UnaryExpr, Box<Expr<'a>>),
     Binary(BinaryExpr, Box<Expr<'a>>, Box<Expr<'a>>),
     Call(Function, Vec<Expr<'a>>),
     Paren(Box<Expr<'a>>),
-    Identifier(Identifier<'a>),
+    Identifier(Identifier<'a>, Option<Relocation>),
     Decimal(&'a str),
     Hex(&'a str),
-    Here,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -169,17 +171,30 @@ pub enum BinaryExpr {
     Div,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum UnaryExpr {
-    Relative,
-}
-
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Function {
     Low,
     High,
-    Rel,
-    Prep,
-    Fin,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Relocation {
+    REL,
+    LOW,
+    HIGH,
+}
+impl Relocation {
+    pub fn to_reloc_kind(self) -> RelocKind {
+        let (pc_relative, slice) = match self {
+            Self::REL => (true, RelocSlice::Whole),
+            Self::LOW => (false, RelocSlice::Low),
+            Self::HIGH => (false, RelocSlice::High),
+        };
+
+        RelocKind {
+            pc_relative,
+            slice,
+        }
+    }
 }

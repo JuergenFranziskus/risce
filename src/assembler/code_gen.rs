@@ -1,69 +1,82 @@
-use std::{collections::HashMap, str::FromStr};
-use num::{BigInt, Num, ToPrimitive, Signed};
-use super::{token::Identifier, ast::{Expr, Ast, Line, LineKind, Mnemonic, Arg, Register, ArgKind, MemSize, ExprKind, Function, Condition, BinaryExpr, UnaryExpr, DBArg, DBArgKind}};
+use std::{collections::{HashMap}, str::FromStr};
+use num::{BigInt, Num, ToPrimitive};
+use crate::assembler::object_file::RelocFormat;
+use super::{token::Identifier, ast::{Expr, Ast, Line, LineKind, Mnemonic, Arg, Register, ArgKind, MemSize, ExprKind, Function, Condition, BinaryExpr, DBArg, DBArgKind, self}, object_file::{Section, Symbol, Relocation, RelocArg, RelocKind, RelocSlice, ObjectFile}};
 
 
 
 pub struct CodeGen<'a> {
-    labels: HashMap<Identifier<'a>, BigInt>,
-    bytes: Vec<u8>,
+    symbols: Vec<Symbol<'a>>,
+    equs: HashMap<&'a str, BigInt>,
     last_global: Option<&'a str>,
+    text: Vec<u8>,
+    data: Vec<u8>,
+    bss_size: u32,
+    section: Section,
     relocations: Vec<Relocation<'a>>,
 }
 impl<'a> CodeGen<'a> {
     pub fn new() -> Self {
         CodeGen {
-            labels: HashMap::new(),
-            bytes: Vec::new(),
+            symbols: Vec::new(),
+            equs: HashMap::new(),
             last_global: None,
+            text: Vec::new(),
+            data: Vec::new(),
+            bss_size: 0,
+            section: Section::Text,
             relocations: Vec::new(),
         }
     }
 
-    pub fn gen_code(mut self, ast: &Ast<'a>) -> Vec<u8> {
+    pub fn gen_code(mut self, ast: &Ast<'a>) -> ObjectFile<'a> {
+        self.compute_labels(ast);
         for line in &ast.lines {
             self.gen_line(line);
         }
-        self.apply_relocations();
 
-        self.bytes
+        ObjectFile {
+            text: self.text,
+            data: self.data,
+            bss_size: self.bss_size,
+            symbols: self.symbols,
+            relocations: self.relocations,
+        }
     }
-    fn apply_relocations(&mut self) {
-        for reloc in &self.relocations {
-            let value = self.eval_expr(&reloc.value, reloc.in_context).unwrap();
-            let value = reloc.kind.encode_immediate(value.to_i32().unwrap());
-            let bytes = value.to_le_bytes();
-            for (i, byte) in bytes.into_iter().enumerate() {
-                let address = reloc.in_context.address as usize + i;
-                self.bytes[address] |= byte;
+    fn compute_labels(&mut self, ast: &Ast<'a>) {
+        for line in &ast.lines {
+            if let &LineKind::Equ(name, ref val) = &line.kind {
+                let value = self.eval_expr(val).unwrap();
+                self.equs.insert(name, value);
             }
         }
     }
+
 
     fn gen_line(&mut self, line: &Line<'a>) {
         self.process_line_label(line.label);
 
         match &line.kind {
             LineKind::Empty => (),
-            LineKind::Equ(e) => self.gen_equ(line.label, e),
+            &LineKind::Equ(_, _) => (),
             &LineKind::Op(mnemonic, ref args) => self.gen_op(mnemonic, args),
             &LineKind::DB(ref args) => self.gen_db(args),
+            LineKind::ResW(bytes) => self.gen_resw(bytes),
+            &LineKind::Section(name) => self.process_section(name),
         }
     }
     fn process_line_label(&mut self, label: Option<Identifier<'a>>) {
-        if let Some(ident) = label {
-            let ident = self.make_global(ident);
-            self.last_global = ident.global;
-            let address = self.bytes.len().into();
-            self.labels.insert(ident, address);
-        }
-    }
-    fn gen_equ(&mut self, label: Option<Identifier<'a>>, value: &Expr<'a>) {
-        if let Some(ident) = label {
-            let ident = self.make_global(ident);
-            let ctx = self.curr_ctx();
-            let value = self.eval_expr(value, ctx).unwrap();
-            self.labels.insert(ident, value);
+        if let Some(label) = label {
+            if label.global.is_some() && label.local.is_none() {
+                self.last_global = label.global;
+            }
+            let label = self.make_global(label);
+            let offset = self.section_offset(self.section);
+            self.symbols.push(Symbol {
+                name: label,
+                section: self.section,
+                offset,
+            });
         }
     }
     fn gen_op(&mut self, op: Mnemonic, args: &[Arg<'a>]) {
@@ -95,20 +108,40 @@ impl<'a> CodeGen<'a> {
             Mnemonic::Leave => self.gen_leave(args),
         }
     }
-
     fn gen_db(&mut self, args: &[DBArg<'a>]) {
+        assert_eq!(self.section, Section::Data);
+
         for arg in args {
             match &arg.kind {
-                &DBArgKind::StringLiteral(str) => self.bytes.extend(str.bytes()),
-                &DBArgKind::Expression(ref expr) => {
-                    let ctx = self.curr_ctx();
-                    let val = self.eval_expr(expr, ctx).unwrap();
-                    let val = val.to_u8().unwrap();
-                    self.bytes.push(val);
+                DBArgKind::StringLiteral(lit) => self.data.extend(lit.bytes()),
+                DBArgKind::Expression(e) => {
+                    let value = self.eval_expr(e).unwrap();
+                    let bytes = value.to_signed_bytes_le();
+                    self.data.extend(bytes);
                 }
             }
         }
     }
+    fn gen_resw(&mut self, bytes: &Expr<'a>) {
+        assert_eq!(self.section, Section::Bss);
+        let amount = self.eval_expr(bytes).unwrap();
+        let amount = amount.to_u32().unwrap();
+        self.bss_size += amount * 4;
+    } 
+    fn process_section(&mut self, name: &str) {
+        match name {
+            "text" => self.section = Section::Text,
+            "data" => self.section = Section::Data,
+            "bss" => self.section = Section::Bss,
+            _ => panic!(),
+        }
+    }
+
+    fn push_instruction(&mut self, bytes: [u8; 4]) {
+        assert_eq!(self.section, Section::Text);
+        self.text.extend(bytes);
+    }
+
 
     fn gen_not(&mut self, args: &[Arg<'a>]) {
         assert!(args.len() <= 2);
@@ -184,11 +217,24 @@ impl<'a> CodeGen<'a> {
 
         let instruction = regs | op;
         let bytes = instruction.to_le_bytes();
-        self.bytes.extend(bytes);
+        self.push_instruction(bytes);
     }
     fn gen_reg_imm_alu_op(&mut self, d: Register, a: Register, imm: &Expr<'a>, op: u8) {
-        self.reloc_b(imm);
-        self.gen_reg_imm_alu_op_prime(d, a, 0, op);
+        debug_assert!(op < 32);
+        let op_bits = (op as u32 & 0b111) << 17;
+        let opcode = match op {
+            0..=7 => 16,
+            8..=15 => 17,
+            16..=23 => 18,
+            24..=31 => 19,
+            _ => unreachable!()
+        };
+        let regs = encode_registers(Some(d), Some(a), None);
+        self.relocate(imm, RelocFormat::B, false);
+
+        let instruction = regs | opcode | op_bits;
+        let bytes = instruction.to_le_bytes();
+        self.push_instruction(bytes);
     }
     fn gen_reg_imm_alu_op_prime(&mut self, d: Register, a: Register, imm: i32, op: u8) {
         debug_assert!(op < 32);
@@ -201,21 +247,20 @@ impl<'a> CodeGen<'a> {
             _ => unreachable!()
         };
         let regs = encode_registers(Some(d), Some(a), None);
-        let immediate = RelocKind::B.encode_immediate(imm);
+        let immediate = RelocFormat::B.encode_immediate(imm);
         
         let instruction = regs | opcode | op_bits | immediate;
         let bytes = instruction.to_le_bytes();
-        self.bytes.extend(bytes);
+        self.push_instruction(bytes);
     }
 
     fn gen_load_immediate(&mut self, d: Register, val: &Expr<'a>) {
         let opcode = 0x20;
         let regs = encode_d_register(d);
-        self.reloc_c(val);
-
+        self.relocate(val, RelocFormat::C, false);
         let instruction = opcode | regs;
         let bytes = instruction.to_le_bytes();
-        self.bytes.extend(bytes);
+        self.push_instruction(bytes);
     }
     fn gen_lui(&mut self, args: &[Arg<'a>]) {
         assert!(args.len() == 2);
@@ -224,11 +269,11 @@ impl<'a> CodeGen<'a> {
 
         let opcode = 0x21;
         let regs = encode_d_register(d);
-        self.reloc_c(e);
+        self.relocate(e, RelocFormat::C, false);
 
         let instruction = opcode | regs;
         let bytes = instruction.to_le_bytes();
-        self.bytes.extend(bytes);
+        self.push_instruction(bytes);
     }
 
     fn gen_call(&mut self, args: &[Arg<'a>]) {
@@ -301,24 +346,25 @@ impl<'a> CodeGen<'a> {
         }
     }
     fn gen_jump_absolute_offset(&mut self, d: Register, a: Register, e: Option<&Expr<'a>>) {
-        let opcode = 0x1B;
-        let regs = encode_registers(Some(d), Some(a), None);
         if let Some(e) = e {
-            self.reloc_b(e);
+            self.relocate(e, RelocFormat::B, false);
         }
+        let regs = encode_registers(Some(d), Some(a), None);
+        let opcode = 0x1B;
 
         let instruction = opcode | regs;
         let bytes = instruction.to_le_bytes();
-        self.bytes.extend(bytes);
+        self.push_instruction(bytes);
     }
     fn gen_jump_relative(&mut self, d: Register, e: &Expr<'a>) {
+        self.relocate(e, RelocFormat::C, true);
+        
+        let regs = encode_registers(Some(d), None, None);
         let opcode = 0x22;
-        let regs = encode_d_register(d);
-        self.reloc_c(e);
 
         let instruction = opcode | regs;
         let bytes = instruction.to_le_bytes();
-        self.bytes.extend(bytes);
+        self.push_instruction(bytes);
     }
 
     fn gen_branch(&mut self, condition: Condition, args: &[Arg<'a>]) {
@@ -327,7 +373,7 @@ impl<'a> CodeGen<'a> {
         let ArgKind::Register(a) = args[0].kind else { panic!() };
         let ArgKind::Register(b) = args[1].kind else { panic!() };
         let ArgKind::Expression(e) = &args[2].kind else { panic!() };
-        self.reloc_d(e);
+        self.relocate(e, RelocFormat::D, true);
 
         let (opcode, branchop) = match condition {
             Greater => (0x36, 0),
@@ -346,7 +392,7 @@ impl<'a> CodeGen<'a> {
 
         let instruction = opcode | branchop | regs;
         let bytes = instruction.to_le_bytes();
-        self.bytes.extend(bytes);
+        self.push_instruction(bytes);
     }
 
     fn gen_lea(&mut self, args: &[Arg<'a>]) {
@@ -360,13 +406,13 @@ impl<'a> CodeGen<'a> {
         assert!(is_relative);
         let regs = encode_registers(Some(d), Some(a), None);
         if let Some(val) = offset {
-            self.reloc_b(val);
+            self.relocate(val, RelocFormat::B, false);
         }
         let opcode = 0x17;
 
         let instruction = opcode | regs;
         let bytes = instruction.to_le_bytes();
-        self.bytes.extend(bytes);
+        self.push_instruction(bytes);
     }
     fn gen_store(&mut self, args: &[Arg<'a>]) {
         assert!(args.len() == 2);
@@ -379,7 +425,7 @@ impl<'a> CodeGen<'a> {
         let size = mem.size.unwrap_or(MemSize::Word);
 
         if let Some(val) = offset {
-            self.reloc_d(val);
+            self.relocate(val, RelocFormat::D, false);
         }
         
         self.gen_store_prime(a, b, 0, is_relative, size);
@@ -394,11 +440,11 @@ impl<'a> CodeGen<'a> {
             (false, MemSize::Word) => 0x35,
         };
         let regs = encode_registers(None, Some(a), Some(b));
-        let offset = RelocKind::D.encode_immediate(offset);
+        let offset = RelocFormat::D.encode_immediate(offset);
         
         let instruction = opcode | regs | offset;
         let bytes = instruction.to_le_bytes();
-        self.bytes.extend(bytes);
+        self.push_instruction(bytes);
     }
     fn gen_load(&mut self, args: &[Arg<'a>]) {
         assert!(args.len() == 2);
@@ -412,7 +458,7 @@ impl<'a> CodeGen<'a> {
 
 
         if let Some(val) = offset {
-            self.reloc_b(val);
+            self.relocate(val, RelocFormat::B, false);
         }
 
         self.gen_load_prime(d, a, 0, is_relative, size);
@@ -427,11 +473,11 @@ impl<'a> CodeGen<'a> {
             (false, MemSize::Word) => 0x1A,
         };
         let regs = encode_registers(Some(d), Some(a), None);
-        let offset = RelocKind::B.encode_immediate(offset);
+        let offset = RelocFormat::B.encode_immediate(offset);
         
         let instruction = opcode | regs | offset;
         let bytes = instruction.to_le_bytes();
-        self.bytes.extend(bytes);
+        self.push_instruction(bytes);
     }
 
     fn gen_enter(&mut self, args: &[Arg<'a>]) {
@@ -445,7 +491,7 @@ impl<'a> CodeGen<'a> {
 
             match &arg.kind {
                 &ArgKind::Register(reg) => registers.push(reg),
-                ArgKind::Expression(e) => immediate = Some(self.eval_expr(e, self.curr_ctx()).unwrap()),
+                ArgKind::Expression(e) => immediate = Some(self.eval_expr(e).unwrap()),
                 ArgKind::Memory(_) => panic!(),
             }
         }
@@ -489,33 +535,35 @@ impl<'a> CodeGen<'a> {
     }
 
 
-    fn eval_expr(&self, e: &Expr, ctx: ExprCtx) -> Option<BigInt> {
+    fn eval_expr(&self, e: &Expr) -> Option<BigInt> {
         match &e.kind {
-            &ExprKind::Here => Some(ctx.address.into()),
-            &ExprKind::Identifier(i) => {
-                let ident = make_global(ctx.last_global, i);
-                self.labels.get(&ident).cloned()
+            &ExprKind::Identifier(i, r) => {
+                if r.is_some() {
+                    return None;
+                }
+
+                let ident = i.global?;
+                if i.local.is_some() {
+                    return None;
+                }
+                self.equs.get(&ident).cloned()
             }
             &ExprKind::Decimal(name) => Some(BigInt::from_str(name).unwrap()),
             &ExprKind::Hex(name) => Some(BigInt::from_str_radix(&name[2..], 16).unwrap()),
-            ExprKind::Paren(e) => self.eval_expr(e, ctx),
+            ExprKind::Paren(e) => self.eval_expr(e),
             &ExprKind::Call(func, ref args) => {
-                let args = args.iter().map(|a| self.eval_expr(a, ctx)).collect::<Option<Vec<_>>>()?;
-                Some(match func {
-                    Function::Low =>  calculate_low(args , ctx),
-                    Function::High => calculate_high(args, ctx),
-                    Function::Rel =>  calculate_rel(args , ctx),
-                    Function::Prep => calculate_prep(args, ctx),
-                    Function::Fin =>  calculate_fin(args , ctx),
-                })
+                let _args = args.iter().map(|a| self.eval_expr(a)).collect::<Option<Vec<_>>>()?;
+                match func {
+                    Function::Low => unimplemented!(),
+                    Function::High => unimplemented!(),
+                }
             }
-            &ExprKind::Binary(op, ref a, ref b) => self.eval_binary_expr(op, a, b, ctx),
-            &ExprKind::Unary(op, ref a) => self.eval_unary_expr(op, a, ctx),
+            &ExprKind::Binary(op, ref a, ref b) => self.eval_binary_expr(op, a, b),
         }
     }
-    fn eval_binary_expr(&self, op: BinaryExpr, a: &Expr, b: &Expr, ctx: ExprCtx) -> Option<BigInt> {
-        let a = self.eval_expr(a, ctx)?;
-        let b = self.eval_expr(b, ctx)?;
+    fn eval_binary_expr(&self, op: BinaryExpr, a: &Expr, b: &Expr) -> Option<BigInt> {
+        let a = self.eval_expr(a)?;
+        let b = self.eval_expr(b)?;
 
         Some(match op {
             BinaryExpr::Add => a + b,
@@ -524,37 +572,49 @@ impl<'a> CodeGen<'a> {
             BinaryExpr::Div => a / b,
         })
     }
-    fn eval_unary_expr(&self, op: UnaryExpr, a: &Expr, ctx: ExprCtx) -> Option<BigInt> {
-        let a = self.eval_expr(a, ctx)?;
-        match op {
-            UnaryExpr::Relative => calculate_rel(vec!(a), ctx).into(),
+
+
+    fn relocate(&mut self, e: &Expr<'a>, format: RelocFormat, force_relative: bool) {
+        let mut reloc = self.relocate_expr(e, format).unwrap();
+        reloc.kind.pc_relative |= force_relative;
+        self.relocations.push(reloc);
+    }
+    fn relocate_expr(&self, e: &Expr<'a>, format: RelocFormat) -> Option<Relocation<'a>> {
+        if let Some(known_value) = self.eval_expr(e) {
+            let value = known_value.to_i32().unwrap();
+            Some(Relocation {
+                arg: RelocArg::Constant(value),
+                section: self.section,
+                offset: self.section_offset(self.section),
+                data_format: format,
+                kind: RelocKind {
+                    pc_relative: false,
+                    slice: RelocSlice::Whole,
+                }
+            })
+        }
+        else {
+            let ExprKind::Identifier(name, reloc) = e.kind else { return None };
+            let reloc_kind = reloc.map(ast::Relocation::to_reloc_kind).unwrap_or_default();
+            let name = self.make_global(name);
+
+            Some(Relocation {
+                arg: RelocArg::Symbol(name),
+                section: self.section,
+                offset: self.section_offset(self.section),
+                data_format: format,
+                kind: reloc_kind,
+            })
+        }
+    }
+    fn section_offset(&self, section: Section) -> u32 {
+        match section {
+            Section::Text => self.text.len() as u32,
+            Section::Data => self.data.len() as u32,
+            Section::Bss => self.bss_size,  
         }
     }
 
-    fn curr_ctx(&self) -> ExprCtx<'a> {
-        ExprCtx {
-            address: self.bytes.len() as u32,
-            last_global: self.last_global,
-        }
-    }
-    fn relocate(&mut self, kind: RelocKind, value: &Expr<'a>) {
-        let ctx = self.curr_ctx();
-        let reloc = Relocation {
-            in_context: ctx,
-            kind,
-            value: value.clone(),
-        };
-        self.relocations.push(reloc);
-    }
-    fn reloc_b(&mut self, value: &Expr<'a>) {
-        self.relocate(RelocKind::B, value);
-    }
-    fn reloc_c(&mut self, value: &Expr<'a>) {
-        self.relocate(RelocKind::C, value);
-    }
-    fn reloc_d(&mut self, value: &Expr<'a>) {
-        self.relocate(RelocKind::D, value);
-    }
 
     fn make_global(&self, label: Identifier<'a>) -> Identifier<'a> {
         make_global(self.last_global, label)
@@ -624,99 +684,3 @@ fn encode_registers(d: Option<Register>, a: Option<Register>, b: Option<Register
     encode_d_register(d) | encode_a_register(a) | encode_b_register(b)
 }
 
-fn round_nearest_multiple(value: &BigInt, multiple: i32) -> BigInt {
-    let half = multiple / 2;
-    let offset = if value.is_negative() { value - half } else { value + half };
-    offset / 2 * 2
-}
-fn get_low_high(value: BigInt) -> (BigInt, BigInt) {
-    let high = round_nearest_multiple(&value, 4096) / 4096;
-    let low = &value - (&high << 12);
-    debug_assert_eq!(&low + (&high << 12), value, "Your math is shit");
-
-    (low, high)
-}
-fn calculate_low(mut args: Vec<BigInt>, _ctx: ExprCtx) -> BigInt {
-    assert_eq!(args.len(), 1);
-    let value = args.pop().unwrap();
-
-    get_low_high(value).0
-}
-fn calculate_high(mut args: Vec<BigInt>, _ctx: ExprCtx) -> BigInt {
-    assert_eq!(args.len(), 1);
-    let value = args.pop().unwrap();
-    get_low_high(value).1
-}
-fn calculate_rel(mut args: Vec<BigInt>, ctx: ExprCtx) -> BigInt {
-    assert!(args.len() <= 2);
-
-    let base = if args.len() == 2 {
-        args.pop().unwrap()
-    }
-    else {
-        ctx.address.into()
-    };
-    let to_rebase = args.pop().unwrap();
-
-
-    let relative = to_rebase - base;
-    relative
-}
-fn calculate_prep(mut args: Vec<BigInt>, ctx: ExprCtx) -> BigInt {
-    if args.len() == 1 {
-        let second_arg = BigInt::from(ctx.address) + 4;
-        args.push(second_arg)
-    }
-
-
-    let rel = calculate_rel(args, ctx);
-    get_low_high(rel).1
-}
-fn calculate_fin(args: Vec<BigInt>, ctx: ExprCtx) -> BigInt {
-    let rel = calculate_rel(args, ctx);
-    get_low_high(rel).0
-}
-
-struct Relocation<'a> {
-    in_context: ExprCtx<'a>,
-    kind: RelocKind,
-    value: Expr<'a>,
-}
-
-enum RelocKind {
-    B,
-    C,
-    D,
-}
-impl RelocKind {
-    fn encode_immediate(&self, immediate: i32) -> u32 {
-        let as_bits = u32::from_le_bytes(immediate.to_le_bytes());
-        match self {
-            Self::B => {
-                assert!(immediate >= -2048 && immediate <= 2047, "{} does not fit into 12 bits", immediate);
-                (as_bits & 0xFFFFFF) << 20
-            }
-            Self::C => {
-                let min = -(2i32.pow(19));
-                let max = 2i32.pow(19) - 1;
-                assert!(immediate >= min && immediate <= max, "{immediate} does not fit into 20 bits");
-                let value = as_bits & 0xFFFFF;
-                value << 12
-            }
-            Self::D => {
-                assert!(immediate >= -2048 && immediate <= 2047, "{immediate} does not fit into 12 bits");
-                let value = as_bits & 0xFFFFFF;
-                let low = (value & 0b11111) << 7;
-                let high = (value & !0b11111) << (25 - 5);
-                low | high
-            }
-        }
-    }
-}
-
-
-#[derive(Copy, Clone, Debug)]
-struct ExprCtx<'a> {
-    address: u32,
-    last_global: Option<&'a str>,
-}

@@ -91,7 +91,7 @@ Any bits specified by neither the format nor the opcode should be zero.
 - 0x21: Load Upper Immediate(Format C)  
     Load the immediate shifted to the left by 12 bits into the destination register.
 
-- 0x22: Jump Relative ( Format C)  
+- 0x22: Jump Relative (Format C)  
     Store the address of the next instruction into the Destination register.  
     Then jump to (RIP + Immediate).
 

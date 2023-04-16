@@ -37,7 +37,7 @@
         </entry>
         <entry>
           <string>Bits</string>
-          <int>32</int>
+          <int>30</int>
         </entry>
       </elementAttributes>
       <pos x="620" y="460"/>
@@ -51,7 +51,7 @@
         </entry>
         <entry>
           <string>Bits</string>
-          <int>32</int>
+          <int>30</int>
         </entry>
       </elementAttributes>
       <pos x="620" y="520"/>
@@ -61,14 +61,10 @@
       <elementAttributes>
         <entry>
           <string>Label</string>
-          <string>AddrLow</string>
-        </entry>
-        <entry>
-          <string>Bits</string>
-          <int>16</int>
+          <string>Write</string>
         </entry>
       </elementAttributes>
-      <pos x="1000" y="460"/>
+      <pos x="1460" y="440"/>
     </visualElement>
     <visualElement>
       <elementName>Add</elementName>
@@ -100,11 +96,11 @@
       <elementAttributes>
         <entry>
           <string>Input Splitting</string>
-          <string>32</string>
+          <string>30</string>
         </entry>
         <entry>
           <string>Output Splitting</string>
-          <string>16,16</string>
+          <string>14,16</string>
         </entry>
       </elementAttributes>
       <pos x="720" y="460"/>
@@ -114,11 +110,11 @@
       <elementAttributes>
         <entry>
           <string>Input Splitting</string>
-          <string>32</string>
+          <string>30</string>
         </entry>
         <entry>
           <string>Output Splitting</string>
-          <string>16,16</string>
+          <string>14,16</string>
         </entry>
       </elementAttributes>
       <pos x="720" y="520"/>
@@ -128,7 +124,7 @@
       <elementAttributes>
         <entry>
           <string>Label</string>
-          <string>Sel</string>
+          <string>Read</string>
         </entry>
       </elementAttributes>
       <pos x="1120" y="380"/>
@@ -138,14 +134,14 @@
       <elementAttributes>
         <entry>
           <string>Label</string>
-          <string>IAddrLow</string>
+          <string>AddrLow</string>
         </entry>
         <entry>
           <string>Bits</string>
-          <int>16</int>
+          <int>14</int>
         </entry>
       </elementAttributes>
-      <pos x="1000" y="520"/>
+      <pos x="1000" y="460"/>
     </visualElement>
     <visualElement>
       <elementName>In</elementName>
@@ -182,10 +178,14 @@
       <elementAttributes>
         <entry>
           <string>Label</string>
-          <string>ISel</string>
+          <string>IAddrLow</string>
+        </entry>
+        <entry>
+          <string>Bits</string>
+          <int>14</int>
         </entry>
       </elementAttributes>
-      <pos x="1120" y="580"/>
+      <pos x="1000" y="520"/>
     </visualElement>
     <visualElement>
       <elementName>And</elementName>
@@ -202,14 +202,10 @@
       <elementAttributes>
         <entry>
           <string>Label</string>
-          <string>NextAddrSpace</string>
-        </entry>
-        <entry>
-          <string>Bits</string>
-          <int>16</int>
+          <string>ISel</string>
         </entry>
       </elementAttributes>
-      <pos x="1100" y="780"/>
+      <pos x="1120" y="580"/>
     </visualElement>
     <visualElement>
       <elementName>And</elementName>
@@ -231,6 +227,40 @@
       </elementAttributes>
       <pos x="620" y="600"/>
     </visualElement>
+    <visualElement>
+      <elementName>Out</elementName>
+      <elementAttributes>
+        <entry>
+          <string>Label</string>
+          <string>NextAddrSpace</string>
+        </entry>
+        <entry>
+          <string>Bits</string>
+          <int>16</int>
+        </entry>
+      </elementAttributes>
+      <pos x="1100" y="780"/>
+    </visualElement>
+    <visualElement>
+      <elementName>In</elementName>
+      <elementAttributes>
+        <entry>
+          <string>Label</string>
+          <string>WriteIn</string>
+        </entry>
+      </elementAttributes>
+      <pos x="1340" y="460"/>
+    </visualElement>
+    <visualElement>
+      <elementName>And</elementName>
+      <elementAttributes>
+        <entry>
+          <string>wideShape</string>
+          <boolean>true</boolean>
+        </entry>
+      </elementAttributes>
+      <pos x="1360" y="420"/>
+    </visualElement>
   </visualElements>
   <wires>
     <wire>
@@ -240,6 +270,10 @@
     <wire>
       <p1 x="740" y="480"/>
       <p2 x="840" y="480"/>
+    </wire>
+    <wire>
+      <p1 x="1100" y="420"/>
+      <p2 x="1360" y="420"/>
     </wire>
     <wire>
       <p1 x="1080" y="580"/>
@@ -258,12 +292,8 @@
       <p2 x="1000" y="360"/>
     </wire>
     <wire>
-      <p1 x="1060" y="780"/>
-      <p2 x="1100" y="780"/>
-    </wire>
-    <wire>
-      <p1 x="660" y="780"/>
-      <p2 x="1000" y="780"/>
+      <p1 x="1340" y="460"/>
+      <p2 x="1360" y="460"/>
     </wire>
     <wire>
       <p1 x="620" y="460"/>
@@ -272,6 +302,14 @@
     <wire>
       <p1 x="740" y="460"/>
       <p2 x="1000" y="460"/>
+    </wire>
+    <wire>
+      <p1 x="1060" y="780"/>
+      <p2 x="1100" y="780"/>
+    </wire>
+    <wire>
+      <p1 x="660" y="780"/>
+      <p2 x="1000" y="780"/>
     </wire>
     <wire>
       <p1 x="660" y="560"/>
@@ -294,6 +332,10 @@
       <p2 x="1000" y="820"/>
     </wire>
     <wire>
+      <p1 x="1440" y="440"/>
+      <p2 x="1460" y="440"/>
+    </wire>
+    <wire>
       <p1 x="620" y="600"/>
       <p2 x="1000" y="600"/>
     </wire>
@@ -311,6 +353,10 @@
     </wire>
     <wire>
       <p1 x="1080" y="380"/>
+      <p2 x="1100" y="380"/>
+    </wire>
+    <wire>
+      <p1 x="1100" y="380"/>
       <p2 x="1120" y="380"/>
     </wire>
     <wire>
@@ -328,6 +374,10 @@
     <wire>
       <p1 x="840" y="400"/>
       <p2 x="840" y="480"/>
+    </wire>
+    <wire>
+      <p1 x="1100" y="380"/>
+      <p2 x="1100" y="420"/>
     </wire>
   </wires>
   <measurementOrdering/>

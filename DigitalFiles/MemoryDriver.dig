@@ -1,0 +1,313 @@
+<?xml version="1.0" encoding="utf-8"?>
+<circuit>
+  <version>2</version>
+  <attributes>
+    <entry>
+      <string>romContent</string>
+      <romList>
+        <roms/>
+      </romList>
+    </entry>
+    <entry>
+      <string>Width</string>
+      <int>13</int>
+    </entry>
+  </attributes>
+  <visualElements>
+    <visualElement>
+      <elementName>In</elementName>
+      <elementAttributes>
+        <entry>
+          <string>Label</string>
+          <string>CPUDataIn</string>
+        </entry>
+        <entry>
+          <string>Bits</string>
+          <int>32</int>
+        </entry>
+      </elementAttributes>
+      <pos x="700" y="980"/>
+    </visualElement>
+    <visualElement>
+      <elementName>In</elementName>
+      <elementAttributes>
+        <entry>
+          <string>Label</string>
+          <string>AddrIn</string>
+        </entry>
+        <entry>
+          <string>Bits</string>
+          <int>32</int>
+        </entry>
+      </elementAttributes>
+      <pos x="700" y="480"/>
+    </visualElement>
+    <visualElement>
+      <elementName>Out</elementName>
+      <elementAttributes>
+        <entry>
+          <string>Label</string>
+          <string>AddrOut</string>
+        </entry>
+        <entry>
+          <string>Bits</string>
+          <int>30</int>
+        </entry>
+      </elementAttributes>
+      <pos x="1040" y="460"/>
+    </visualElement>
+    <visualElement>
+      <elementName>Out</elementName>
+      <elementAttributes>
+        <entry>
+          <string>Label</string>
+          <string>IAddrOut</string>
+        </entry>
+        <entry>
+          <string>Bits</string>
+          <int>30</int>
+        </entry>
+      </elementAttributes>
+      <pos x="1040" y="520"/>
+    </visualElement>
+    <visualElement>
+      <elementName>Splitter</elementName>
+      <elementAttributes>
+        <entry>
+          <string>mirror</string>
+          <boolean>true</boolean>
+        </entry>
+        <entry>
+          <string>Input Splitting</string>
+          <string>32</string>
+        </entry>
+        <entry>
+          <string>Output Splitting</string>
+          <string>2,30</string>
+        </entry>
+      </elementAttributes>
+      <pos x="780" y="480"/>
+    </visualElement>
+    <visualElement>
+      <elementName>Splitter</elementName>
+      <elementAttributes>
+        <entry>
+          <string>mirror</string>
+          <boolean>true</boolean>
+        </entry>
+        <entry>
+          <string>Input Splitting</string>
+          <string>32</string>
+        </entry>
+        <entry>
+          <string>Output Splitting</string>
+          <string>2,30</string>
+        </entry>
+      </elementAttributes>
+      <pos x="740" y="540"/>
+    </visualElement>
+    <visualElement>
+      <elementName>In</elementName>
+      <elementAttributes>
+        <entry>
+          <string>Label</string>
+          <string>MemDataIn</string>
+        </entry>
+        <entry>
+          <string>Bits</string>
+          <int>32</int>
+        </entry>
+      </elementAttributes>
+      <pos x="700" y="1020"/>
+    </visualElement>
+    <visualElement>
+      <elementName>In</elementName>
+      <elementAttributes>
+        <entry>
+          <string>Label</string>
+          <string>MemIDataIn</string>
+        </entry>
+        <entry>
+          <string>Bits</string>
+          <int>32</int>
+        </entry>
+      </elementAttributes>
+      <pos x="700" y="1280"/>
+    </visualElement>
+    <visualElement>
+      <elementName>In</elementName>
+      <elementAttributes>
+        <entry>
+          <string>Label</string>
+          <string>Size</string>
+        </entry>
+        <entry>
+          <string>Bits</string>
+          <int>2</int>
+        </entry>
+      </elementAttributes>
+      <pos x="700" y="1060"/>
+    </visualElement>
+    <visualElement>
+      <elementName>In</elementName>
+      <elementAttributes>
+        <entry>
+          <string>Label</string>
+          <string>IAddrIn</string>
+        </entry>
+        <entry>
+          <string>Bits</string>
+          <int>32</int>
+        </entry>
+      </elementAttributes>
+      <pos x="700" y="540"/>
+    </visualElement>
+    <visualElement>
+      <elementName>Out</elementName>
+      <elementAttributes>
+        <entry>
+          <string>Label</string>
+          <string>MemIDataOut</string>
+        </entry>
+        <entry>
+          <string>Bits</string>
+          <int>32</int>
+        </entry>
+      </elementAttributes>
+      <pos x="760" y="1280"/>
+    </visualElement>
+    <visualElement>
+      <elementName>Out</elementName>
+      <elementAttributes>
+        <entry>
+          <string>Label</string>
+          <string>WriteDataOut</string>
+        </entry>
+        <entry>
+          <string>Bits</string>
+          <int>32</int>
+        </entry>
+      </elementAttributes>
+      <pos x="1400" y="1020"/>
+    </visualElement>
+    <visualElement>
+      <elementName>Out</elementName>
+      <elementAttributes>
+        <entry>
+          <string>Label</string>
+          <string>ReadDataOut</string>
+        </entry>
+        <entry>
+          <string>Bits</string>
+          <int>32</int>
+        </entry>
+      </elementAttributes>
+      <pos x="1400" y="820"/>
+    </visualElement>
+    <visualElement>
+      <elementName>MemWriteDriver.dig</elementName>
+      <elementAttributes/>
+      <pos x="1220" y="980"/>
+    </visualElement>
+    <visualElement>
+      <elementName>MemReadDriver.dig</elementName>
+      <elementAttributes/>
+      <pos x="1180" y="800"/>
+    </visualElement>
+  </visualElements>
+  <wires>
+    <wire>
+      <p1 x="700" y="480"/>
+      <p2 x="780" y="480"/>
+    </wire>
+    <wire>
+      <p1 x="800" y="480"/>
+      <p2 x="820" y="480"/>
+    </wire>
+    <wire>
+      <p1 x="700" y="1280"/>
+      <p2 x="760" y="1280"/>
+    </wire>
+    <wire>
+      <p1 x="820" y="800"/>
+      <p2 x="1180" y="800"/>
+    </wire>
+    <wire>
+      <p1 x="700" y="1060"/>
+      <p2 x="1140" y="1060"/>
+    </wire>
+    <wire>
+      <p1 x="1140" y="1060"/>
+      <p2 x="1220" y="1060"/>
+    </wire>
+    <wire>
+      <p1 x="760" y="520"/>
+      <p2 x="1040" y="520"/>
+    </wire>
+    <wire>
+      <p1 x="720" y="1000"/>
+      <p2 x="1160" y="1000"/>
+    </wire>
+    <wire>
+      <p1 x="1160" y="1000"/>
+      <p2 x="1220" y="1000"/>
+    </wire>
+    <wire>
+      <p1 x="1160" y="840"/>
+      <p2 x="1180" y="840"/>
+    </wire>
+    <wire>
+      <p1 x="800" y="460"/>
+      <p2 x="1040" y="460"/>
+    </wire>
+    <wire>
+      <p1 x="820" y="1040"/>
+      <p2 x="1220" y="1040"/>
+    </wire>
+    <wire>
+      <p1 x="700" y="980"/>
+      <p2 x="1220" y="980"/>
+    </wire>
+    <wire>
+      <p1 x="1320" y="820"/>
+      <p2 x="1400" y="820"/>
+    </wire>
+    <wire>
+      <p1 x="1140" y="820"/>
+      <p2 x="1180" y="820"/>
+    </wire>
+    <wire>
+      <p1 x="1340" y="1020"/>
+      <p2 x="1400" y="1020"/>
+    </wire>
+    <wire>
+      <p1 x="700" y="1020"/>
+      <p2 x="720" y="1020"/>
+    </wire>
+    <wire>
+      <p1 x="700" y="540"/>
+      <p2 x="740" y="540"/>
+    </wire>
+    <wire>
+      <p1 x="720" y="1000"/>
+      <p2 x="720" y="1020"/>
+    </wire>
+    <wire>
+      <p1 x="820" y="480"/>
+      <p2 x="820" y="800"/>
+    </wire>
+    <wire>
+      <p1 x="820" y="800"/>
+      <p2 x="820" y="1040"/>
+    </wire>
+    <wire>
+      <p1 x="1140" y="820"/>
+      <p2 x="1140" y="1060"/>
+    </wire>
+    <wire>
+      <p1 x="1160" y="840"/>
+      <p2 x="1160" y="1000"/>
+    </wire>
+  </wires>
+  <measurementOrdering/>
+</circuit>
