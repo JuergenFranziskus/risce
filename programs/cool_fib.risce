@@ -3,6 +3,7 @@ section text
 
 start:
     mov rsp, stack_start
+    mov rbp, rsp
     call zero_bss
     call prepare_divisors
     mov r16, 0
@@ -88,9 +89,9 @@ prepare_divisors:
     store r6, [r4]
     sub r4, 4
     add r5, 1
-    mov r1, r6
-    call mul_ten
-    mov r6, r1
+    shl r1, r6, 3
+    shl r2, r6, 1
+    add r6, r1, r2
     jmp .loop
 .end:
     mov r31, r7
@@ -112,16 +113,10 @@ divmod:
     mov r1, r3
     ret
 
-mul_ten:
-    # Start of function, parameter is in r1
-    shl r2, r1, 3 # Multiply parameter by 8
-    shl r3, r1, 1 # Multiply parameter by 2
-    add r1, r2, r3 # 2x + 8x = 10x
-    ret
-
 
 section data
 goodbye_message db "All done ^^", 0
+
 
 section bss
 divisors resw 10

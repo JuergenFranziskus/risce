@@ -232,6 +232,7 @@ impl<'a, 'b> Parser<'a, 'b> {
 
         let id = match name {
             "rsp" => 30,
+            "rbp" => 29,
             _ => (&name[1..]).parse().unwrap()
         };
         Register(id)

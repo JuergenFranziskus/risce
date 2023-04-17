@@ -1,11 +1,9 @@
-todo!()# Calling Convention
+# Calling Convention
 The RiscE processor does not assume any implicit calling convention.  
 The assembler however does, and as such has certain convenience instructions
 such as a call and ret instruction that assume a fixed link register.  
 
 # Register Usage Table
-
-
 | Register | Usage | Preserved |
 | -------- | ----- | --------- |
 | r0 | Fixed to zero | n/a |
@@ -17,3 +15,15 @@ such as a call and ret instruction that assume a fixed link register.
 | r29 | Base Pointer | Yes |
 | r30 | Stack pointer | Yes |
 | r31 | Link register | No |
+
+
+# Stack
+The stack pointer should be initialized by the binary entry point such that is can freely grow downward.
+Upon entry to a function, the stack needs to be aligned to four bytes.
+
+
+# Parameter Passing
+A parameter can only be directly passed to a function if it is smaller than the word size of four bytes.
+If a larger parameter is required, a pointer to it must instead be passed.  
+The first 6 parameters are passed in the registers r1 thru r6.  
+All other parameters are pushed onto the stack in order from right to left, respecting alignment.
