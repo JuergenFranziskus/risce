@@ -1,11 +1,9 @@
 section text
-
-
 start:
     mov rsp, stack_start
     mov rbp, rsp
-    call zero_bss
-    call prepare_divisors
+    mov r1, hello_message
+    call print_string
     mov r16, 0
     mov r17, 1
 .loop:
@@ -13,6 +11,7 @@ start:
     jb r18, r16, .end
     mov r1, r18
     call print_u32
+    call print_newline
     mov r16, r17
     mov r17, r18
     jmp .loop
@@ -42,84 +41,48 @@ print_string:
     mov r2, 0 # The byte index
 .loop:
     add r4, r1, r2
-    load r5, [r4]
+    load r5, byte [r4]
     jeq r5, r0, .end
-    store r5, byte [terminal]
     add r2, 1
+    store r5, byte [terminal]
     jmp .loop
 .end:
+    ret
+
+print_newline:
+    mov r1, 10
+    store r1, [terminal]
     ret
 
 
 print_u32:
-    # Start of function, number to print is in r1
-    enter r16, r17, r18, r31
-    mov r16, r1 # The number that remains to be printed
-    mov r17, divisors
-    mov r18, 0 # Index into the divisor array
-.loop:
-    mov r1, 10
-    jnb r18, r1, .end
+    enter r31, r16, r17, r18, 11
+    mov r16, r1
+    mov r17, 9
+.digit_loop:
+    udiv r1, r16, 10
+    urem r2, r16, 10
 
-    mov r1, r16
-    load r2, [r17]
-    call divmod # We now have the digit in r1, the remaining number in r2
-    mov r16, r2
-    add r1, 48 # Make ascii digit
-    store r1, byte [terminal]
-    add r17, 4
-    add r18, 1
-    jmp .loop
-.end:
-    mov r1, 10
-    store r1, [terminal]
-    leave r16, r17, r18, r31
-    ret
+    add r3, rsp, r17
+    add r2, 48
+    store r2, byte [r3]
+    mov r16, r1
 
-prepare_divisors:
-    mov r7, r31
-    mov r4, divisors
-    add r4, 9 * 4
-    mov r5, 0
-    mov r6, 1
-.loop:
-    mov r1, 10
-    jnb r5, r1, .end
-    
-    store r6, [r4]
-    sub r4, 4
-    add r5, 1
-    shl r1, r6, 3
-    shl r2, r6, 1
-    add r6, r1, r2
-    jmp .loop
-.end:
-    mov r31, r7
-    ret
-
-
-divmod:
-    # Start of Function
-    # The divident (remainder) is in r1
-    # The divisor is in r2
-    mov r3, 0 # The quotient is in r3
-.loop:
-    jb r1, r2, .end
-    sub r1, r2
-    add r3, 1
-    jmp .loop
-.end:
-    mov r2, r1
-    mov r1, r3
+    jeq r0, r1, .digit_loop_end
+    jeq r0, r17, .digit_loop_end
+    sub r17, 1
+    jmp .digit_loop
+.digit_loop_end:
+    store r0, byte [rsp + 10]
+    add r1, rsp, r17
+    call print_string
+    leave r31, r16, r17, r18
     ret
 
 
 section data
-goodbye_message db "All done ^^", 0
-
-
-section bss
-divisors resw 10
+hello_message db "Look at these fibonacci numbers:", 10, 0
+goodbye_message db "All done ^^", 10, 0
 
 
 equ stack_start 0x10000 # The stack starts at the very end of ram

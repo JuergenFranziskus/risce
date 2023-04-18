@@ -61,6 +61,14 @@ pub enum Mnemonic {
     Sar,
     Rol,
     Ror,
+    Mul,
+    UMul,
+    IMul,
+    UDiv,
+    URem,
+    IDiv,
+    IRem,
+    Set(Condition),
 
     Enter,
     Leave,
@@ -144,6 +152,24 @@ pub enum MemSize {
     Byte,
     Short,
     Word,
+}
+impl MemSize {
+    pub fn to_store_bits(self) -> u32 {
+        let size = match self {
+            Self::Byte => 0,
+            Self::Short => 1,
+            Self::Word => 3,
+        };
+        size << 22
+    }
+    pub fn to_load_bits(self) -> u32 {
+        let size = match self {
+            Self::Byte => 0,
+            Self::Short => 1,
+            Self::Word => 3,
+        };
+        size << 17
+    }
 }
 
 

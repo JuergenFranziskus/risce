@@ -104,6 +104,14 @@ impl<'a> CodeGen<'a> {
             Mnemonic::Sar => self.gen_bin_alu_op(args, ALU_SAR),
             Mnemonic::Rol => self.gen_bin_alu_op(args, ALU_ROL),
             Mnemonic::Ror => self.gen_bin_alu_op(args, ALU_ROR),
+            Mnemonic::Mul => self.gen_bin_alu_op(args, ALU_MUL),
+            Mnemonic::UMul => self.gen_bin_alu_op(args, ALU_UMUL),
+            Mnemonic::IMul => self.gen_bin_alu_op(args, ALU_IMUL),
+            Mnemonic::UDiv => self.gen_bin_alu_op(args, ALU_UDIV),
+            Mnemonic::IDiv => self.gen_bin_alu_op(args, ALU_IDIV),
+            Mnemonic::URem => self.gen_bin_alu_op(args, ALU_UREM),
+            Mnemonic::IRem => self.gen_bin_alu_op(args, ALU_IREM),
+            Mnemonic::Set(con) => self.gen_cmp(con, args),
             Mnemonic::Enter => self.gen_enter(args),
             Mnemonic::Leave => self.gen_leave(args),
         }
@@ -148,10 +156,10 @@ impl<'a> CodeGen<'a> {
         let ArgKind::Register(d) = args[0].kind else { panic!() };
         if args.len() == 2 {
             let ArgKind::Register(a) = args[1].kind else { panic!() };
-            self.gen_reg_reg_alu_op(d, a, a, ALU_NAND);
+            self.gen_reg_reg_alu_op(d, a, a, ALU_NAND, 0);
         }
         else {
-            self.gen_reg_reg_alu_op(d, d, d, ALU_NAND);
+            self.gen_reg_reg_alu_op(d, d, d, ALU_NAND, 0);
         }
     }
     fn gen_neg(&mut self, args: &[Arg<'a>]) {
@@ -159,10 +167,10 @@ impl<'a> CodeGen<'a> {
         let ArgKind::Register(d) = args[0].kind else { panic!() };
         if args.len() == 2 {
             let ArgKind::Register(a) = args[1].kind else { panic!() };
-            self.gen_reg_reg_alu_op(d, a, Register(0), ALU_NAND);
+            self.gen_reg_reg_alu_op(d, a, Register(0), ALU_NEG, 0);
         }
         else {
-            self.gen_reg_reg_alu_op(d, d, Register(0), ALU_NEG);
+            self.gen_reg_reg_alu_op(d, d, Register(0), ALU_NEG, 0);
         }
     }
     fn gen_bin_alu_op(&mut self, args: &[Arg<'a>], op: u8) {
@@ -171,7 +179,7 @@ impl<'a> CodeGen<'a> {
             let ArgKind::Register(a) = args[1].kind else { panic!() };
             
             if let ArgKind::Register(b) = args[2].kind {
-                self.gen_reg_reg_alu_op(d, a, b, op);
+                self.gen_reg_reg_alu_op(d, a, b, op, 0);
             }
             else if let ArgKind::Expression(e) = &args[2].kind {
                 self.gen_reg_imm_alu_op(d, a , e, op);
@@ -183,7 +191,7 @@ impl<'a> CodeGen<'a> {
         else if args.len() == 2 {
             let ArgKind::Register(d) = args[0].kind else { panic!("Expected register, found {:?}", args[0].kind) };
             if let ArgKind::Register(a) = args[1].kind {
-                self.gen_reg_reg_alu_op(d, d, a, op);
+                self.gen_reg_reg_alu_op(d, d, a, op, 0);
             }
             else if let ArgKind::Expression(e) = &args[1].kind {
                 self.gen_reg_imm_alu_op(d, d, e, op);
@@ -200,7 +208,7 @@ impl<'a> CodeGen<'a> {
         assert!(args.len() == 2);
         let ArgKind::Register(d) = args[0].kind else { panic!() };
         if let ArgKind::Register(a) = args[1].kind {
-            self.gen_reg_reg_alu_op(d, a, Register(0), ALU_ADD);
+            self.gen_reg_reg_alu_op(d, a, Register(0), ALU_ADD, 0);
         }
         else if let ArgKind::Expression(e) = &args[1].kind {
             self.gen_load_immediate(d, e);
@@ -209,13 +217,32 @@ impl<'a> CodeGen<'a> {
             panic!()
         }
     }
+    fn gen_cmp(&mut self, op: Condition, args: &[Arg<'a>]) {
+        let condition = op as u8;
 
-    fn gen_reg_reg_alu_op(&mut self, d: Register, a: Register, b: Register, op: u8) {
-        debug_assert!(op < 32);
+        let ArgKind::Register(d) = args[0].kind else { panic!() };
+        let ArgKind::Register(a) = args[1].kind else { panic!() };
+
+        if args.len() == 3 {
+            let ArgKind::Register(b) = args[2].kind else { panic!() };
+            self.gen_reg_reg_alu_op(d, a, b, ALU_SET, condition);
+        }
+        else if args.len() == 2 {
+            self.gen_reg_reg_alu_op(d, d, a, ALU_SET, condition);
+        }
+        else {
+            panic!()
+        }
+    }
+
+    fn gen_reg_reg_alu_op(&mut self, d: Register, a: Register, b: Register, alu_op: u8, condition: u8) {
+        debug_assert!(alu_op < 32);
+        debug_assert!(condition < 16);
         let regs = encode_registers(Some(d), Some(a), Some(b));
-        let op = (op as u32) << 22;
+        let op = (alu_op as u32) << 22;
+        let condition = (condition as u32) << 27;
 
-        let instruction = regs | op;
+        let instruction = regs | op | condition;
         let bytes = instruction.to_le_bytes();
         self.push_instruction(bytes);
     }
@@ -431,18 +458,12 @@ impl<'a> CodeGen<'a> {
         self.gen_store_prime(a, b, 0, is_relative, size);
     }
     fn gen_store_prime(&mut self, a: Register, b: Register, offset: i32, is_relative: bool, size: MemSize) {
-        let opcode = match (is_relative, size) {
-            (true, MemSize::Byte) => 0x30,
-            (true, MemSize::Short) => 0x31,
-            (true, MemSize::Word) => 0x32,
-            (false, MemSize::Byte) => 0x33,
-            (false, MemSize::Short) => 0x34,
-            (false, MemSize::Word) => 0x35,
-        };
+        let opcode = if is_relative { 0x30 } else { 0x33 };
         let regs = encode_registers(None, Some(a), Some(b));
         let offset = RelocFormat::D.encode_immediate(offset);
-        
-        let instruction = opcode | regs | offset;
+        let size = size.to_store_bits();
+
+        let instruction = opcode | regs | offset | size;
         let bytes = instruction.to_le_bytes();
         self.push_instruction(bytes);
     }
@@ -464,18 +485,12 @@ impl<'a> CodeGen<'a> {
         self.gen_load_prime(d, a, 0, is_relative, size);
     }
     fn gen_load_prime(&mut self, d: Register, a: Register, offset: i32, is_relative: bool, size: MemSize) {
-        let opcode = match (is_relative, size) {
-            (true, MemSize::Byte) => 0x14,
-            (true, MemSize::Short) => 0x15,
-            (true, MemSize::Word) => 0x16,
-            (false, MemSize::Byte) => 0x18,
-            (false, MemSize::Short) => 0x19,
-            (false, MemSize::Word) => 0x1A,
-        };
+        let opcode = if is_relative { 0x14 } else { 0x18 };
         let regs = encode_registers(Some(d), Some(a), None);
         let offset = RelocFormat::B.encode_immediate(offset);
-        
-        let instruction = opcode | regs | offset;
+        let size = size.to_load_bits();
+
+        let instruction = opcode | regs | offset | size;
         let bytes = instruction.to_le_bytes();
         self.push_instruction(bytes);
     }
@@ -529,7 +544,7 @@ impl<'a> CodeGen<'a> {
             self.gen_load_prime(reg, Register::rbp(), offset, false, MemSize::Word);
         }
 
-        self.gen_reg_reg_alu_op(Register::rsp(), Register::rbp(), Register(0), ALU_ADD); // Copy rbp to rsp
+        self.gen_reg_reg_alu_op(Register::rsp(), Register::rbp(), Register(0), ALU_ADD, 0); // Copy rbp to rsp
         self.gen_load_prime(Register::rbp(), Register::rsp(), 0, false, MemSize::Word);
         self.gen_reg_imm_alu_op_prime(Register::rsp(), Register::rsp(), 4, ALU_ADD);
     }
@@ -634,7 +649,14 @@ const ALU_SHR: u8 = 10;
 const ALU_SAR: u8 = 11;
 const ALU_ROL: u8 = 12;
 const ALU_ROR: u8 = 13;
-
+const ALU_MUL: u8 = 0xE;
+const ALU_UMUL: u8 = 0xF;
+const ALU_IMUL: u8 = 0x10;
+const ALU_UDIV: u8 = 0x11;
+const ALU_UREM: u8 = 0x12;
+const ALU_IDIV: u8 = 0x13;
+const ALU_IREM: u8 = 0x14;
+const ALU_SET: u8 = 0x15;
 
 static DEFAULT_PUSH_REGS: &[Register] = &[
     Register(16),

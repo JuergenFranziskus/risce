@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<truthTable>
+  <variables>
+    <variable name="Opcode_5"/>
+    <variable name="Opcode_4"/>
+    <variable name="Opcode_3"/>
+    <variable name="Opcode_2"/>
+    <variable name="Opcode_1"/>
+    <variable name="Opcode_0"/>
+  </variables>
+  <results>
+    <result>
+      <name>ALUOp_1</name>
+      <values class="BoolTable">XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</values>
+    </result>
+    <result>
+      <name>ALUOp_0</name>
+      <values class="BoolTable">XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</values>
+    </result>
+    <result>
+      <name>ALUSwap</name>
+      <values class="BoolTable">XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</values>
+    </result>
+    <result>
+      <name>ExecMode</name>
+      <values class="BoolTable">XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</values>
+    </result>
+    <result>
+      <name>MemMode_1</name>
+      <values class="BoolTable">XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</values>
+    </result>
+    <result>
+      <name>MemMode_0</name>
+      <values class="BoolTable">XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</values>
+    </result>
+    <result>
+      <name>ImmediateMode</name>
+      <values class="BoolTable">XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</values>
+    </result>
+    <result>
+      <name>MemSize</name>
+      <values class="BoolTable">XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</values>
+    </result>
+    <result>
+      <name>Condition_1</name>
+      <values class="BoolTable">XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</values>
+    </result>
+    <result>
+      <name>Condition_0</name>
+      <values class="BoolTable">XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</values>
+    </result>
+    <result>
+      <name>AddressMode</name>
+      <values class="BoolTable">XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</values>
+    </result>
+    <result>
+      <name>BranchMode</name>
+      <values class="BoolTable">XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</values>
+    </result>
+    <result>
+      <name>BranchDestModeMode</name>
+      <values class="BoolTable">XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</values>
+    </result>
+  </results>
+</truthTable>

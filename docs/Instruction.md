@@ -38,7 +38,8 @@ Any bits specified by neither the format nor the opcode should be zero.
 # Instruction Listing
 - 0x0: ALU Op A (Format A)  
     Perform an ALU op.  
-    The ALU op to perform is given by bits 22 thru 26.
+    The ALU op to perform is given by bits 22 thru 26.  
+    A Branch condition, where relevant, is given by bits 27 thru 30.
 
 - 0x10: ALU Op B0 (Format B)  
     Perform an ALU op.  
@@ -56,34 +57,39 @@ Any bits specified by neither the format nor the opcode should be zero.
     Perform an ALU op.  
     The ALU op to perform is given by bits 17 thru 19 with an offset of 24.
 
-- 0x14: Load Byte Relative (Format B)  
+- 0x14: Load Relative (Format B)  
     Compute an address as (RIP + Immediate + Source0)
-    and load a byte into the destination register.  
-
-- 0x15: Load Short Relative (Format B)  
-    Perform the same operation as in 0x14, loading two bytes instead of one.
-
-- 0x16: Load Word Relative (Format B)  
-    Perform the same operation as in 0x14, loading four bytes instead of one.
+    and load a value into the destination register.  
+    The amount of bytes to load is given by bits 17 thru 18.
 
 - 0x17: Load Effective Relative Address (Format B)  
     Perform an address calculation as in 0x14,  
     storing the address itself into the destination register.
 
-- 0x18: Load Byte Offset (Format B)  
+- 0x18: Load Offset (Format B)  
     Compute an address as Immediate + Source0,  
-    then load a byte from the resulting address and store it into the destination.
+    then load a value from the resulting address and store it into the destination.  
+    The amount of bytes to load is given by bits 17 thru 18.
 
-- 0x19: Load Short Offset (Format B)  
-    Same operation as in 0x18, loading two bytes instead of one.
+- 0x1B: Jump Absolute (Format B)  
+    Store the address of the next instruction in the destination register.  
+    Then jump to (Source0 + Immediate).
 
-- 0x1A: Load Word Offset (Format B)  
-    Same operation as in 0x18, loading four bytes instead of one.
+- 0x1C: ALU Op B4 (Format B)  
+    Perform an ALU op, swapping the inputs.  
+    The ALU op to perform is given by bits 17 thru 19.
 
-- 0x1B: Jump Absolute Offset (Format B)  
-    Store the address of the next instruction into the Destination register.  
-    Then jump to (Immediate + Source0).
+- 0x1D: ALU Op B5 (Format B)  
+    Perform an ALU op, swapping the inputs.  
+    The ALU op to perform is given by bits 17 thru 19 with an offset of 8.
 
+- 0x1E: ALU Op B6 (Format B)  
+    Perform an ALU op, swapping the inputs.  
+    The ALU op to perform is given by bits 17 thru 19 with an offset of 16.
+
+- 0x1F: ALU Op B7 (Format B)  
+    Perform an ALU op, swapping the inputs.  
+    The ALU op to perform is given by bits 17 thru 19 with an offset of 24.
 
 - 0x20: Load Immediate (Format C)  
     Load the immediate into the destination register.
@@ -95,43 +101,21 @@ Any bits specified by neither the format nor the opcode should be zero.
     Store the address of the next instruction into the Destination register.  
     Then jump to (RIP + Immediate).
 
-- 0x30: Store Byte Relative (Format D)  
+- 0x30: Store Relative (Format D)  
     Compute an offset, add it onto the address of this instruction
-    and store the lowest byte of Source1 into the resulting address.  
-    The offset is computed as in 0x14.
+    and store the value of Source1 into the resulting address.  
+    The offset is computed as in 0x14.  
+    How many bytes to write is given by bits 22 thru 23
 
-- 0x31: Store Short Relative (Format D)  
-    Perform the same operation as in 0x30, storing two bytes instead of one.
-
-- 0x32: Store Word Relative (Format D)  
-    Perform the same operation as in 0x30, storing four bytes instead of one.
-
-
-- 0x33: Store Byte Offset (Format D)  
+- 0x33: Store Offset (Format D)  
     Compute an address and store the lowest byte of Source1 into the resulting address.  
     The address is computed as in 0x18.
-
-- 0x34: Store Short Offset (Format D)  
-    Perform the same operation as in 0x33, storing two bytes instead of one.
-
-- 0x35: Store Word Offset (Format D)  
-    Perform the same operation as in 0x33, storing four bytes instead of one.
-
+    How many bytes to write is given by bits 22 thru 23
 
 - 0x36: Branch Relational (Format D)  
     Compute a condition on Source0 and Source1, and jump to (RIP + Immediate) if it is true.  
-    The condition is given by bits 22 thru 24 thusly:
-    * 0: Greater (signed)
-    * 1: Less (signed)
-    * 2: Above (unsigned)
-    * 3: Below (unsigned)
-    * 4: Not Greater
-    * 5: Not Less
-    * 6: Not Above
-    * 7: Not Below
+    The condition is given by bits 22 thru 24.
 
 - 0x37: Branch Equality (Format D)  
     Compute a condition on Source0 and Source1, and jump to (RIP + Immediate) if it is true.
-    The condition is given by bit 22 thusly:
-    * 0: Equal
-    * 1: Not Equal
+    The condition is given by bit 22 thru 24 with an offset of 8.
