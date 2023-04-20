@@ -1,5 +1,4 @@
-use super::{span::Span, token::Identifier, object_file::{RelocKind, RelocSlice}};
-
+use super::{span::Span, token::Identifier};
 
 #[derive(Clone, Debug)]
 pub struct Ast<'a> {
@@ -16,7 +15,7 @@ pub struct Line<'a> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LineKind<'a> {
     Empty,
-    Equ(&'a str, Expr<'a>),
+    Equ(Identifier<'a>, Expr<'a>),
     Op(Mnemonic, Vec<Arg<'a>>),
     DB(Vec<DBArg<'a>>),
     ResW(Expr<'a>),
@@ -34,7 +33,6 @@ impl LineKind<'_> {
         }
     }
 }
-
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Mnemonic {
@@ -110,7 +108,6 @@ impl ArgKind<'_> {
     }
 }
 
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DBArg<'a> {
     pub span: Span,
@@ -123,8 +120,6 @@ pub enum DBArgKind<'a> {
     StringLiteral(&'a str),
 }
 
-
-
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Register(pub u8);
 impl Register {
@@ -136,7 +131,6 @@ impl Register {
     }
 }
 
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MemArg<'a> {
     pub span: Span,
@@ -145,7 +139,6 @@ pub struct MemArg<'a> {
     pub offset: Option<Expr<'a>>,
     pub size: Option<MemSize>,
 }
-
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum MemSize {
@@ -172,7 +165,6 @@ impl MemSize {
     }
 }
 
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Expr<'a> {
     pub span: Span,
@@ -184,7 +176,7 @@ pub enum ExprKind<'a> {
     Binary(BinaryExpr, Box<Expr<'a>>, Box<Expr<'a>>),
     Call(Function, Vec<Expr<'a>>),
     Paren(Box<Expr<'a>>),
-    Identifier(Identifier<'a>, Option<Relocation>),
+    Identifier(Identifier<'a>),
     Decimal(&'a str),
     Hex(&'a str),
 }
@@ -194,33 +186,10 @@ pub enum BinaryExpr {
     Add,
     Sub,
     Mul,
-    Div,
 }
-
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Function {
     Low,
     High,
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Relocation {
-    REL,
-    LOW,
-    HIGH,
-}
-impl Relocation {
-    pub fn to_reloc_kind(self) -> RelocKind {
-        let (pc_relative, slice) = match self {
-            Self::REL => (true, RelocSlice::Whole),
-            Self::LOW => (false, RelocSlice::Low),
-            Self::HIGH => (false, RelocSlice::High),
-        };
-
-        RelocKind {
-            pc_relative,
-            slice,
-        }
-    }
 }

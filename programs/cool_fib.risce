@@ -23,10 +23,10 @@ start:
 
 
 zero_bss:
-    lui r1, __bss_start@HIGH
-    add r1, __bss_start@LOW
-    lui r2, __bss_end@HIGH
-    add r2, __bss_end@LOW
+    lui r1, high __bss_start
+    add r1, low __bss_start
+    lui r2, high __bss_end
+    add r2, low __bss_end
 .loop:
     jnb r1, r2, .end
     store r0, byte [r1]
@@ -42,8 +42,8 @@ print_string:
 .loop:
     add r4, r1, r2
     load r5, byte [r4]
-    jeq r5, r0, .end
     add r2, 1
+    jeq r5, r0, .end
     store r5, byte [terminal]
     jmp .loop
 .end:
@@ -56,19 +56,19 @@ print_newline:
 
 
 print_u32:
-    enter r31, r16, r17, r18, 11
+    enter r31, r16, r17, r18
+    sub rsp, 11
     mov r16, r1
     mov r17, 9
 .digit_loop:
-    udiv r1, r16, 10
     urem r2, r16, 10
+    udiv r16, 10
 
     add r3, rsp, r17
     add r2, 48
     store r2, byte [r3]
-    mov r16, r1
 
-    jeq r0, r1, .digit_loop_end
+    jeq r0, r16, .digit_loop_end
     jeq r0, r17, .digit_loop_end
     sub r17, 1
     jmp .digit_loop
@@ -81,9 +81,13 @@ print_u32:
 
 
 section data
-hello_message db "Look at these fibonacci numbers:", 10, 0
+hello_message db "Look at these awesome fibonacci numbers:", 10, 0
 goodbye_message db "All done ^^", 10, 0
 
 
-equ stack_start 0x10000 # The stack starts at the very end of ram
+section bss
+divisors resw 10
+
+
+equ stack_start 0x20000 # The stack starts at the very end of ram
 equ terminal -4 # The terminal is at the very last address

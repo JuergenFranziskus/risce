@@ -1,111 +1,167 @@
-use super::token::Identifier;
-use serde_derive::*;
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-#[derive(Serialize, Deserialize)]
 pub struct ObjectFile<'a> {
-    pub text: Vec<u8>,
-    pub data: Vec<u8>,
-    pub bss_size: u32,
-    #[serde(borrow)]
     pub symbols: Vec<Symbol<'a>>,
     pub relocations: Vec<Relocation<'a>>,
-}
-
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-#[derive(Serialize, Deserialize)]
-pub struct Symbol<'a> {
-    #[serde(borrow)]
-    pub name: Identifier<'a>,
-    pub section: Section,
-    pub offset: u32,
+    pub text: Vec<u8>,
+    pub data: Vec<u8>,
+    pub bss_size: Calculation<'a>,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-#[derive(Serialize, Deserialize)]
+pub struct AbsoluteLabel<'a> {
+    pub global: &'a str,
+    pub local: Option<&'a str>,
+}
+impl<'a> From<&'a str> for AbsoluteLabel<'a> {
+    fn from(value: &'a str) -> Self {
+        Self {
+            global: value,
+            local: None,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Section {
     Text,
     Data,
     Bss,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Symbol<'a> {
+    pub name: AbsoluteLabel<'a>,
+    pub value: Calculation<'a>,
+    /// Whether this symbol is visible from other object files
+    pub exported: bool,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-#[derive(Serialize, Deserialize)]
 pub struct Relocation<'a> {
-    #[serde(borrow)]
-    pub arg: RelocArg<'a>,
-    pub section: Section,
-    pub offset: u32,
-    pub data_format: RelocFormat,
-    pub kind: RelocKind,
+    pub address: Calculation<'a>,
+    pub value: Calculation<'a>,
+    pub format: RelocFormat,
 }
-
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-#[derive(Serialize, Deserialize)]
-pub enum RelocArg<'a> {
-    #[serde(borrow)]
-    Symbol(Identifier<'a>),
-    Constant(i32),
-}
-
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-#[derive(Serialize, Deserialize)]
 pub enum RelocFormat {
-    B,
-    C,
-    D,
+    Byte,
+    Short,
+    Word,
+    IFormatB,
+    IFormatC,
+    IFormatD,
 }
-impl RelocFormat {
-    pub fn encode_immediate(&self, immediate: i32) -> u32 {
-        let as_bits = u32::from_le_bytes(immediate.to_le_bytes());
-        match self {
-            Self::B => {
-                assert!(immediate >= -2048 && immediate <= 2047, "{} does not fit into 12 bits", immediate);
-                (as_bits & 0xFFFFFF) << 20
-            }
-            Self::C => {
-                let min = -(2i32.pow(19));
-                let max = 2i32.pow(19) - 1;
-                assert!(immediate >= min && immediate <= max, "{immediate} does not fit into 20 bits");
-                let value = as_bits & 0xFFFFF;
-                value << 12
-            }
-            Self::D => {
-                assert!(immediate >= -2048 && immediate <= 2047, "{immediate} does not fit into 12 bits");
-                let value = as_bits & 0xFFFFFF;
-                let low = (value & 0b11111) << 7;
-                let high = (value & !0b11111) << (25 - 5);
-                low | high
-            }
-        }
+
+/// A list of operations to be applied in order to a stack of values.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Calculation<'a>(pub Vec<Operation<'a>>);
+impl<'a> Calculation<'a> {
+    pub fn start() -> Self {
+        Self(Vec::new())
+    }
+
+    pub fn symbol(&mut self, name: impl Into<AbsoluteLabel<'a>>) {
+        self.0.push(Operation::Symbol(name.into()));
+    }
+    pub fn constant(&mut self, value: u32) {
+        self.0.push(Operation::Constant(value));
+    }
+    pub fn sconstant(&mut self, value: i32) {
+        self.0.push(Operation::SConstant(value));
+    }
+
+    pub fn text_start(&mut self) {
+        self.0.push(Operation::LocalTextSectionStart);
+    }
+    pub fn data_start(&mut self) {
+        self.0.push(Operation::LocalDataSectionStart);
+    }
+    pub fn bss_start(&mut self) {
+        self.0.push(Operation::LocalBssSectionStart);
+    }
+
+    pub fn make_relative(&mut self) {
+        self.0.push(Operation::MakeRelative);
+    }
+
+    pub fn add(&mut self) {
+        self.0.push(Operation::Add);
+    }
+    pub fn sub(&mut self) {
+        self.0.push(Operation::Sub);
+    }
+    pub fn mul(&mut self) {
+        self.0.push(Operation::Mul);
+    }
+    pub fn div(&mut self) {
+        self.0.push(Operation::Div);
+    }
+    pub fn idiv(&mut self) {
+        self.0.push(Operation::IDiv);
+    }
+    pub fn rem(&mut self) {
+        self.0.push(Operation::Rem);
+    }
+    pub fn irem(&mut self) {
+        self.0.push(Operation::IRem);
+    }
+
+    pub fn low(&mut self) {
+        self.0.push(Operation::Low);
+    }
+    pub fn high(&mut self) {
+        self.0.push(Operation::High);
+    }
+
+    pub fn global_bss_start(&mut self) {
+        self.0.push(Operation::BssStart);
+    }
+    pub fn global_bss_end(&mut self) {
+        self.0.push(Operation::BssEnd);
     }
 }
-
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-#[derive(Serialize, Deserialize)]
-pub struct RelocKind {
-    pub pc_relative: bool,
-    pub slice: RelocSlice,
-}
-impl Default for RelocKind {
+impl<'a> Default for Calculation<'a> {
     fn default() -> Self {
-        Self {
-            pc_relative: false,
-            slice: RelocSlice::Whole,
-        }
+        Self::start()
     }
 }
 
-
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-#[derive(Serialize, Deserialize)]
-pub enum RelocSlice {
-    Whole,
+pub enum Operation<'a> {
+    Symbol(AbsoluteLabel<'a>),
+    Constant(u32),
+    SConstant(i32),
+
+    /// The starting address of the text section of the containing object file.
+    LocalTextSectionStart,
+    /// The starting address of the data section of the containing object file.
+    LocalDataSectionStart,
+    /// The starting address of the bss section of the containing object file.
+    LocalBssSectionStart,
+
+    BssStart,
+    BssEnd,
+
+    /// Only valid in relocations.
+    /// Make the top value relative to the relocation's address.
+    MakeRelative,
+
+    /// Pop b. Pop a. Push a + b.
+    Add,
+    /// Pop b. Pop a. Push a - b.
+    Sub,
+    /// Pop b. Pop a. Push a * b.
+    Mul,
+    /// Pop b. Pop a. Push a / b.
+    Div,
+    /// Pop b. Pop a. Push a / b.
+    IDiv,
+    /// Pop b. Pop a. Push a % b.
+    Rem,
+    /// Pop b. Pop a. Push a % b.
+    IRem,
+
     Low,
-    High
+    High,
 }

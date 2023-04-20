@@ -1,4 +1,4 @@
-use risce::assembler::{token::lex, parser::Parser, code_gen::CodeGen, linker::Linker};
+use risce::assembler::{code_gen::CodeGen, linker::Linker, parser::Parser, token::lex};
 
 fn main() {
     let args: Vec<_> = std::env::args().collect();
@@ -7,16 +7,13 @@ fn main() {
 
     let src = std::fs::read_to_string(path).unwrap();
     let tokens = lex(&src);
+
     let ast = Parser::new(&tokens).parse();
     let obj = CodeGen::new().gen_code(&ast);
-    let bytes = Linker::new().link(&obj);
-
-
-
+    let objects = [obj];
+    let bytes = Linker::new(&objects).link();
     print_hex_file(&bytes);
-
 }
-
 
 #[allow(dead_code)]
 fn print_hex_file(bytes: &[u8]) {

@@ -1,17 +1,19 @@
 use super::span::Span;
-use logos::{Logos, Lexer};
-use serde_derive::*;
+use logos::{Lexer, Logos};
 
 pub fn lex(src: &str) -> Vec<Token> {
-    TokenKind::lexer(src).spanned()
-        .map(|(k, r)| Token { kind: k, span: Span::new(r.start, r.end - r.start) })
+    TokenKind::lexer(src)
+        .spanned()
+        .map(|(k, r)| Token {
+            kind: k,
+            span: Span::new(r.start, r.end - r.start),
+        })
         .collect()
 }
 
-
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Token<'a> {
-    pub span: Span, 
+    pub span: Span,
     pub kind: TokenKind<'a>,
 }
 
@@ -58,10 +60,8 @@ pub enum TokenKind<'a> {
     #[token("word")]
     Word,
 
-
     #[regex(r"[_a-zA-Z][_a-zA-Z0-9]*", split_identifier)]
-    #[regex(r"\.[_a-zA-Z0-9]+", split_identifier)]
-    #[regex(r"[_a-zA-Z][_a-zA-Z0-9]*\.[_a-zA-Z0-9]+", split_identifier)]
+    #[regex(r"\.[_a-zA-Z][_a-zA-Z0-9]*", split_identifier)]
     Identifier(Identifier<'a>),
 
     #[regex(r#""[^"]*""#)]
@@ -85,35 +85,36 @@ pub enum TokenKind<'a> {
     Error,
 }
 
-
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-#[derive(Serialize, Deserialize)]
 pub struct Identifier<'a> {
-    pub global: Option<&'a str>,
-    pub local: Option<&'a str>,
+    pub name: &'a str,
+    pub local: bool,
 }
 impl<'a> Identifier<'a> {
-    pub(crate) fn global(arg: &'a str) -> Self {
-        Self {
-            global: Some(arg),
-            local: None,
-        }
+    pub fn new(name: &'a str, local: bool) -> Self {
+        Self { name, local }
+    }
+    pub fn new_global(name: &'a str) -> Self {
+        Self::new(name, false)
+    }
+    pub fn new_local(name: &'a str) -> Self {
+        Self::new(name, true)
+    }
+
+    pub fn is_global(self) -> bool {
+        !self.local
+    }
+    pub fn is_local(self) -> bool {
+        self.local
     }
 }
 
 fn split_identifier<'a>(lexer: &'_ mut Lexer<'a, TokenKind<'a>>) -> Identifier<'a> {
-    let parts: Vec<_> = lexer.slice().split('.').collect();
-    let mut global = None;
-    let mut local  = None;
-    if parts[0] != "" {
-        global = Some(parts[0]);
-    }
-    if parts.len() == 2 && parts[1] != "" {
-        local = Some(parts[1]);
-    }
-
-    Identifier {
-        global,
-        local
+    let src = lexer.slice();
+    if src.starts_with('.') {
+        let local = &src[1..];
+        Identifier::new_local(local)
+    } else {
+        Identifier::new_global(src)
     }
 }

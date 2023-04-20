@@ -1,5 +1,3 @@
-
-
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Span {
     pub start: usize,
@@ -7,10 +5,7 @@ pub struct Span {
 }
 impl Span {
     pub fn new(start: usize, length: usize) -> Self {
-        Self {
-            start,
-            length
-        }
+        Self { start, length }
     }
 
     pub fn merge(a: Span, b: Span) -> Span {
@@ -24,4 +19,3 @@ impl Span {
         self.start + self.length
     }
 }
-

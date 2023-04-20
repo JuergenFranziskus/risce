@@ -6,16 +6,12 @@ The assembler recognizes some instruction mnemonics which may not correspond to 
 ## Enter
 The 'enter' instruction is supposed to aid in preserving registers upon function entry and
 setting up a stack frame.  
-It takes a variable number of parameters:  
-First, it may take zero or more register names.  
-Finally, it may take a single immediate value.  
+It takes a variable number of register names as paremeters.  
 
 A stack frame is first set up by pushing the current value of rbp, then copying rsp into rbp.  
 Afterwards all mentioned registers are saved on the stack in the order listed.  
-Finally, if an immediate operand is given, that many further bytes are allocated on the stack by decrementing rsp.
 
-If no registers are mentioned, all callee-saved registers except for rbp and rsp are saved.  
-If no immediate operand is given, is defaults to zero.
+If no registers are mentioned, all callee-saved registers except for rbp and rsp, but including r31 are saved.  
 
 
 ## Leave

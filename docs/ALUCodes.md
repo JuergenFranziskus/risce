@@ -51,3 +51,7 @@ It also has a 5-bit operation selector.
     O = A % B
 * 0x15: Set  
     O = I ? 1 : 0
+* 0x16: Choose  
+    O = I ? A : B  
+    Note: Since A and B are also used to generate the boolean I, this is rather restrained.  
+    It is still useful for things such as min or max tho.
