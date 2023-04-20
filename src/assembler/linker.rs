@@ -216,7 +216,7 @@ impl<'a, 'b> Linker<'a, 'b> {
         for i in range {
             let calc = CalcID::BssSize(ObjID(i));
             let value = self.calculate_prime(calc, None, in_calcs);
-            sum = sum + value.to_u32();
+            sum += value.to_u32();
         }
 
         self.bss_starts.insert(obj, self.global_bss_start + sum);
@@ -274,27 +274,27 @@ fn encode(value: Value, format: RelocFormat) -> [u8; 4] {
     use RelocFormat::*;
     match format {
         Byte => {
-            assert!(u < 256 || (s >= -128 && s < 128));
+            assert!(u < 256 || (-128..128).contains(&s));
             [value.0[0], 0, 0, 0]
         }
         Short => {
-            assert!(u < 65536 || (s >= -32768 && s < 32768));
+            assert!(u < 65536 || (-32768..32768).contains(&s));
             [value.0[0], value.0[1], 0, 0]
         }
         Word => value.0,
         IFormatB => {
-            assert!(s >= -2048 && s < 2048);
+            assert!((-2048..2048).contains(&s));
             (u << 20).to_le_bytes()
         }
         IFormatC => {
-            assert!(s >= -524288 && s < 524288);
+            assert!((-524288..524288).contains(&s));
             (u << 12).to_le_bytes()
         }
         IFormatD => {
-            assert!(s >= -2048 && s < 2048);
+            assert!((-2048..2048).contains(&s));
             let mask = 0b11111;
             let low = (u & mask) << 7;
-            let high = (u & !mask) << 25 - 5;
+            let high = (u & !mask) << (25 - 5);
             (low | high).to_le_bytes()
         }
     }

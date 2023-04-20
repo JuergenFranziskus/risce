@@ -64,7 +64,7 @@ impl<'a, 'b> Parser<'a, 'b> {
             self.consume_token(TokenKind::Newline);
         }
 
-        if label != None || kind != LineKind::Empty {
+        if label.is_some() || kind != LineKind::Empty {
             Some(Line {
                 span: Span::merge(start, end),
                 label,
@@ -243,7 +243,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         let id = match name {
             "rsp" => 30,
             "rbp" => 29,
-            _ => (&name[1..]).parse().unwrap(),
+            _ => name[1..].parse().unwrap(),
         };
         Register(id)
     }

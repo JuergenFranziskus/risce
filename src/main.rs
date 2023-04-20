@@ -20,7 +20,7 @@ fn print_hex_file(bytes: &[u8]) {
     println!("v2.0 raw");
     for chunk in bytes.chunks(4) {
         let mut bytes = [0; 4];
-        for (i, &byte) in chunk.into_iter().enumerate() {
+        for (i, &byte) in chunk.iter().enumerate() {
             bytes[i] = byte;
         }
         let value = u32::from_le_bytes(bytes);

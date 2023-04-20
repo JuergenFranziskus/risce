@@ -111,8 +111,7 @@ impl<'a> Identifier<'a> {
 
 fn split_identifier<'a>(lexer: &'_ mut Lexer<'a, TokenKind<'a>>) -> Identifier<'a> {
     let src = lexer.slice();
-    if src.starts_with('.') {
-        let local = &src[1..];
+    if let Some(local) = src.strip_prefix('.') {
         Identifier::new_local(local)
     } else {
         Identifier::new_global(src)

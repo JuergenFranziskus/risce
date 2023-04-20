@@ -58,7 +58,7 @@ impl<'a> CodeGen<'a> {
             LineKind::Empty => (),
             &LineKind::Equ(name, ref value) => self.gen_equ(name, value),
             &LineKind::Op(mnemonic, ref args) => self.gen_op(mnemonic, args),
-            &LineKind::DB(ref args) => self.gen_db(args),
+            LineKind::DB(args) => self.gen_db(args),
             LineKind::ResW(bytes) => self.gen_resw(bytes),
             &LineKind::Section(name) => self.process_section(name),
         }
@@ -535,7 +535,7 @@ impl<'a> CodeGen<'a> {
         ); // Save the old base pointer
         self.gen_reg_imm_alu_op_prime(Register::rbp(), Register::rsp(), bytes - 4, ALU_ADD); // Copy rsp to rbp
 
-        for (i, &reg) in registers.into_iter().enumerate() {
+        for (i, &reg) in registers.iter().enumerate() {
             let i = i as i32;
             let offset = -i * 4 - 4;
             self.gen_store_prime(Register::rbp(), reg, offset, false, MemSize::Word);
@@ -556,7 +556,7 @@ impl<'a> CodeGen<'a> {
             &registers
         };
 
-        for (i, &reg) in registers.into_iter().enumerate() {
+        for (i, &reg) in registers.iter().enumerate() {
             let i = i as i32;
             let offset = -i * 4 - 4;
             self.gen_load_prime(reg, Register::rbp(), offset, false, MemSize::Word);
@@ -658,6 +658,11 @@ impl<'a> CodeGen<'a> {
         } else {
             label.name.into()
         }
+    }
+}
+impl<'a> Default for CodeGen<'a> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
