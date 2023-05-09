@@ -3,8 +3,8 @@ use std::{
     collections::{HashMap, HashSet},
     ops::{Add, Mul, Sub},
 };
-
 use super::object_file::{AbsoluteLabel, Calculation, ObjectFile, RelocFormat};
+
 
 pub struct Linker<'a, 'b> {
     values: HashMap<CalcID, Value>,
@@ -190,6 +190,11 @@ impl<'a, 'b> Linker<'a, 'b> {
                     let a = stack.pop().unwrap();
                     stack.push(Value::irem(a, b));
                 }
+                Shl => {
+                    let b = stack.pop().unwrap();
+                    let a = stack.pop().unwrap();
+                    stack.push(Value::shl(a, b));
+                }
 
                 Low => {
                     let val = stack.pop().unwrap().to_i32();
@@ -253,7 +258,7 @@ impl<'a, 'b> Linker<'a, 'b> {
             }
         }
 
-        panic!()
+        panic!("Could not find symbol {name:?}");
     }
 
     fn get_calculation(&self, id: CalcID) -> &'b Calculation<'a> {
@@ -283,11 +288,11 @@ fn encode(value: Value, format: RelocFormat) -> [u8; 4] {
         }
         Word => value.0,
         IFormatB => {
-            assert!((-2048..2048).contains(&s));
+            assert!((-2048..2048).contains(&s), "({s}:{u}) does not fit into 12 bits");
             (u << 20).to_le_bytes()
         }
         IFormatC => {
-            assert!((-524288..524288).contains(&s));
+            assert!((-524288..524288).contains(&s), "({s}:{u}) does not fit into 20 bits");
             (u << 12).to_le_bytes()
         }
         IFormatD => {
@@ -355,10 +360,17 @@ impl Value {
         let res = a.wrapping_rem(b);
         Self(res.to_le_bytes())
     }
+    fn shl(a: Value, b: Value) -> Value {
+        let a = a.to_u32();
+        let b = b.to_u32();
+        (a << b).into()
+    }
 
     fn zero() -> Value {
         Value([0, 0, 0, 0])
     }
+
+    
 }
 impl From<u32> for Value {
     fn from(value: u32) -> Self {

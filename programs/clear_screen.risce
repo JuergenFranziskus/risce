@@ -1,0 +1,59 @@
+start:
+    dcall zero_bss
+        mov rsp, stack_start
+        mov rbp, rsp
+    call funky_clear
+.halt:
+    jmp .halt
+
+zero_bss:
+    lui r1, high __bss_start
+    add r1, low __bss_start
+    lui r2, high __bss_end
+    add r2, low __bss_end
+.loop:
+    jnb r1, r2, .end
+    djmp .loop
+        store r0, byte [r1]
+        add r1, 1
+.end:
+    ret
+
+
+
+funky_clear:
+    mov r1, 0
+    mov r2, 0
+    mov r3, 0
+    mov r4, 640
+    mov r5, 480
+    mov r7, g_address
+    mov r8, g_data
+.loop:
+    djnb r1, r4, .y_tick
+        jnb r2, r5, .loop_end
+        mul r6, r2, r4
+    add r6, r1
+    store r6, [r7]
+    store r3, short [r8]
+    djmp .loop
+        add r1, 1
+        add r3, 1
+.y_tick:
+    djmp .loop
+        mov r1, 0
+        add r2, 1
+.loop_end:
+    ret
+
+
+
+
+
+equ stack_start 0x20000 # The stack starts at the very end of ram
+
+equ peripherals -65536  # -1 << 16, last 16-bit address range
+equ terminal peripherals
+equ g_address peripherals + 4
+equ g_data peripherals + 8
+equ g_swap peripherals + 12

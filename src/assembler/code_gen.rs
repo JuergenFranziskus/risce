@@ -80,13 +80,19 @@ impl<'a> CodeGen<'a> {
     }
     fn gen_op(&mut self, op: Mnemonic, args: &[Arg<'a>]) {
         match op {
+            Mnemonic::Nop => { assert!(args.is_empty()); self.gen_reg_reg_alu_op(Register(0), Register(0), Register(0), ALU_ADD, 0) },
             Mnemonic::Mov => self.gen_mov(args),
             Mnemonic::Lui => self.gen_lui(args),
-            Mnemonic::Jmp => self.gen_jmp(args),
-            Mnemonic::Jal => self.gen_jal(args),
-            Mnemonic::Call => self.gen_call(args),
-            Mnemonic::Ret => self.gen_ret(args),
-            Mnemonic::Branch(op) => self.gen_branch(op, args),
+            Mnemonic::Jmp => self.gen_jmp(args, false),
+            Mnemonic::Jal => self.gen_jal(args, false),
+            Mnemonic::DJmp => self.gen_jmp(args, true),
+            Mnemonic::DJal => self.gen_jal(args, true),
+            Mnemonic::Call => self.gen_call(args, false),
+            Mnemonic::DCall => self.gen_call(args, true),
+            Mnemonic::Ret => self.gen_ret(args, false),
+            Mnemonic::DRet => self.gen_ret(args, true),
+            Mnemonic::Branch(op) => self.gen_branch(op, args, false),
+            Mnemonic::DBranch(op) => self.gen_branch(op, args, true),
             Mnemonic::Store => self.gen_store(args),
             Mnemonic::Load => self.gen_load(args),
             Mnemonic::Lea => self.gen_lea(args),
@@ -110,9 +116,11 @@ impl<'a> CodeGen<'a> {
             Mnemonic::IDiv => self.gen_bin_alu_op(args, ALU_IDIV),
             Mnemonic::URem => self.gen_bin_alu_op(args, ALU_UREM),
             Mnemonic::IRem => self.gen_bin_alu_op(args, ALU_IREM),
-            Mnemonic::Set(con) => self.gen_cmp(con, args),
+            Mnemonic::Set(con) => self.gen_set(con, args),
+            Mnemonic::Choose(con) => self.gen_choose(con, args),
             Mnemonic::Enter => self.gen_enter(args),
-            Mnemonic::Leave => self.gen_leave(args),
+            Mnemonic::Leave => self.gen_leave(args, false),
+            Mnemonic::Exit => self.gen_leave(args, true),
         }
     }
     fn gen_equ(&mut self, name: Identifier<'a>, value: &Expr<'a>) {
@@ -218,7 +226,7 @@ impl<'a> CodeGen<'a> {
             panic!()
         }
     }
-    fn gen_cmp(&mut self, op: Condition, args: &[Arg<'a>]) {
+    fn gen_set(&mut self, op: Condition, args: &[Arg<'a>]) {
         let condition = op as u8;
 
         let ArgKind::Register(d) = args[0].kind else { panic!() };
@@ -232,6 +240,14 @@ impl<'a> CodeGen<'a> {
         } else {
             panic!()
         }
+    }
+    fn gen_choose(&mut self, op: Condition, args: &[Arg<'a>]) {
+        let ArgKind::Register(d) = args[0].kind else { panic!() };
+        let ArgKind::Register(a) = args[1].kind else { panic!() };
+        let ArgKind::Register(b) = args[2].kind else { panic!() };
+        let con = op as u8;
+
+        self.gen_reg_reg_alu_op(d, a, b, ALU_CHOOSE, con);
     }
 
     fn gen_reg_reg_alu_op(
@@ -313,17 +329,17 @@ impl<'a> CodeGen<'a> {
         self.push_instruction(bytes);
     }
 
-    fn gen_call(&mut self, args: &[Arg<'a>]) {
+    fn gen_call(&mut self, args: &[Arg<'a>], delay: bool) {
         let d = Register(31);
         if args.len() == 2 {
             let ArgKind::Register(a) = args[0].kind else { panic!() };
             let ArgKind::Expression(e) = &args[1].kind else { panic!() };
-            self.gen_jump_absolute_offset(d, a, Some(e));
+            self.gen_jump_absolute(d, a, Some(e), delay);
         } else if args.len() == 1 {
             if let ArgKind::Register(a) = args[0].kind {
-                self.gen_jump_absolute_offset(d, a, None);
+                self.gen_jump_absolute(d, a, None, delay);
             } else if let ArgKind::Expression(e) = &args[0].kind {
-                self.gen_jump_relative(d, e);
+                self.gen_jump_relative(d, e, delay);
             } else {
                 panic!()
             }
@@ -331,20 +347,20 @@ impl<'a> CodeGen<'a> {
             panic!()
         }
     }
-    fn gen_ret(&mut self, args: &[Arg<'a>]) {
+    fn gen_ret(&mut self, args: &[Arg<'a>], delay: bool) {
         assert_eq!(args.len(), 0);
-        self.gen_jump_absolute_offset(Register(0), Register(31), None)
+        self.gen_jump_absolute(Register(0), Register(31), None, delay)
     }
-    fn gen_jmp(&mut self, args: &[Arg<'a>]) {
+    fn gen_jmp(&mut self, args: &[Arg<'a>], delay: bool) {
         if args.len() == 2 {
             let ArgKind::Register(a) = args[0].kind else { panic!() };
             let ArgKind::Expression(e) = &args[1].kind else { panic!() };
-            self.gen_jump_absolute_offset(Register(0), a, Some(e));
+            self.gen_jump_absolute(Register(0), a, Some(e), delay);
         } else if args.len() == 1 {
             if let ArgKind::Register(a) = args[0].kind {
-                self.gen_jump_absolute_offset(Register(0), a, None);
+                self.gen_jump_absolute(Register(0), a, None, delay);
             } else if let ArgKind::Expression(e) = &args[0].kind {
-                self.gen_jump_relative(Register(0), e);
+                self.gen_jump_relative(Register(0), e, delay);
             } else {
                 panic!()
             }
@@ -352,17 +368,17 @@ impl<'a> CodeGen<'a> {
             panic!()
         }
     }
-    fn gen_jal(&mut self, args: &[Arg<'a>]) {
+    fn gen_jal(&mut self, args: &[Arg<'a>], delay: bool) {
         let ArgKind::Register(d) = args[0].kind else { panic!() };
         if args.len() == 3 {
             let ArgKind::Register(a) = args[1].kind else { panic!() };
             let ArgKind::Expression(e) = &args[2].kind else { panic!() };
-            self.gen_jump_absolute_offset(d, a, Some(e));
+            self.gen_jump_absolute(d, a, Some(e), delay);
         } else if args.len() == 2 {
             if let ArgKind::Register(a) = args[1].kind {
-                self.gen_jump_absolute_offset(d, a, None);
+                self.gen_jump_absolute(d, a, None, delay);
             } else if let ArgKind::Expression(e) = &args[1].kind {
-                self.gen_jump_relative(d, e);
+                self.gen_jump_relative(d, e, delay);
             } else {
                 panic!()
             }
@@ -370,29 +386,29 @@ impl<'a> CodeGen<'a> {
             panic!()
         }
     }
-    fn gen_jump_absolute_offset(&mut self, d: Register, a: Register, e: Option<&Expr<'a>>) {
+    fn gen_jump_absolute(&mut self, d: Register, a: Register, e: Option<&Expr<'a>>, delay: bool) {
         if let Some(e) = e {
             self.relocate(e, RelocFormat::IFormatB, false);
         }
         let regs = encode_registers(Some(d), Some(a), None);
-        let opcode = 0x1B;
+        let opcode = if delay { 0x1A } else { 0x1B };
 
         let instruction = opcode | regs;
         let bytes = instruction.to_le_bytes();
         self.push_instruction(bytes);
     }
-    fn gen_jump_relative(&mut self, d: Register, e: &Expr<'a>) {
+    fn gen_jump_relative(&mut self, d: Register, e: &Expr<'a>, delay: bool) {
         self.relocate(e, RelocFormat::IFormatC, true);
 
         let regs = encode_registers(Some(d), None, None);
-        let opcode = 0x22;
+        let opcode = if delay { 0x23 } else { 0x22 };
 
         let instruction = opcode | regs;
         let bytes = instruction.to_le_bytes();
         self.push_instruction(bytes);
     }
 
-    fn gen_branch(&mut self, condition: Condition, args: &[Arg<'a>]) {
+    fn gen_branch(&mut self, condition: Condition, args: &[Arg<'a>], delayed: bool) {
         use Condition::*;
         assert_eq!(args.len(), 3);
         let ArgKind::Register(a) = args[0].kind else { panic!() };
@@ -400,7 +416,7 @@ impl<'a> CodeGen<'a> {
         let ArgKind::Expression(e) = &args[2].kind else { panic!() };
         self.relocate(e, RelocFormat::IFormatD, true);
 
-        let (opcode, branchop) = match condition {
+        let (mut opcode, branchop) = match condition {
             Greater => (0x36, 0),
             Less => (0x36, 1),
             Above => (0x36, 2),
@@ -410,8 +426,9 @@ impl<'a> CodeGen<'a> {
             NotAbove => (0x36, 6),
             NotBelow => (0x36, 7),
             Equal => (0x37, 0),
-            NotEqual => (0x37, 0),
+            NotEqual => (0x37, 1),
         };
+        if delayed { opcode += 2 };
         let branchop = branchop << 22;
         let regs = encode_registers(None, Some(a), Some(b));
 
@@ -541,7 +558,7 @@ impl<'a> CodeGen<'a> {
             self.gen_store_prime(Register::rbp(), reg, offset, false, MemSize::Word);
         }
     }
-    fn gen_leave(&mut self, args: &[Arg<'a>]) {
+    fn gen_leave(&mut self, args: &[Arg<'a>], also_return: bool) {
         let mut registers = Vec::with_capacity(32);
         for arg in args {
             match &arg.kind {
@@ -563,6 +580,10 @@ impl<'a> CodeGen<'a> {
         }
 
         self.gen_reg_reg_alu_op(Register::rsp(), Register::rbp(), Register(0), ALU_ADD, 0); // Copy rbp to rsp
+        if also_return {
+            self.gen_ret(&[], true);
+        }
+
         self.gen_load_prime(Register::rbp(), Register::rsp(), 0, false, MemSize::Word);
         self.gen_reg_imm_alu_op_prime(Register::rsp(), Register::rsp(), 4, ALU_ADD);
     }
@@ -634,6 +655,8 @@ impl<'a> CodeGen<'a> {
                 match function {
                     Function::Low => program.low(),
                     Function::High => program.high(),
+                    Function::UDiv => program.div(),
+                    Function::IDiv => program.idiv(),
                 }
             }
             ExprKind::Paren(e) => self.relocate_prime(e, program),
@@ -644,6 +667,7 @@ impl<'a> CodeGen<'a> {
                     BinaryExpr::Add => program.add(),
                     BinaryExpr::Sub => program.sub(),
                     BinaryExpr::Mul => program.mul(),
+                    BinaryExpr::Shl => program.shl(),
                 }
             }
         }
@@ -686,6 +710,7 @@ const ALU_UREM: u8 = 0x12;
 const ALU_IDIV: u8 = 0x13;
 const ALU_IREM: u8 = 0x14;
 const ALU_SET: u8 = 0x15;
+const ALU_CHOOSE: u8 = 0x16;
 
 static DEFAULT_PUSH_REGS: &[Register] = &[
     Register(16),

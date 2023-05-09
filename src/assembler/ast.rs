@@ -36,13 +36,19 @@ impl LineKind<'_> {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Mnemonic {
+    Nop,
     Mov,
     Lui,
     Jmp,
+    DJmp,
     Jal,
+    DJal,
     Call,
+    DCall,
     Ret,
+    DRet,
     Branch(Condition),
+    DBranch(Condition),
     Store,
     Load,
     Lea,
@@ -67,9 +73,11 @@ pub enum Mnemonic {
     IDiv,
     IRem,
     Set(Condition),
+    Choose(Condition),
 
     Enter,
     Leave,
+    Exit,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -186,10 +194,14 @@ pub enum BinaryExpr {
     Add,
     Sub,
     Mul,
+
+    Shl,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Function {
     Low,
     High,
+    UDiv,
+    IDiv,
 }

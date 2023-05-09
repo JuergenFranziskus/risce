@@ -1,0 +1,203 @@
+equ MAX_X 640
+equ MAX_Y 240
+equ MAX_ITERATIONS 20
+
+start:
+    dcall zero_bss
+        mov rsp, stack_start
+        mov rbp, rsp
+
+    mov r16, 0
+    mov r18, MAX_X
+    mov r17, 0
+    mov r19, MAX_Y
+.loop:
+    jnb r17, r19, .end
+    jnb r16, r18, .tick_y
+    dcall do_pixel_mandelbrot
+        mov r1, r16
+        mov r2, r17
+    djmp .loop
+        add r16, 1
+        nop
+
+.tick_y:
+    djmp .loop
+        add r17, 1
+        mov r16, 0
+.end:
+.halt:
+    jmp .halt
+
+
+zero_bss:
+    lui r1, high __bss_start
+    add r1, low __bss_start
+    lui r2, high __bss_end
+    add r2, low __bss_end
+.loop:
+    jnb r1, r2, .end
+    djmp .loop
+        store r0, byte [r1]
+        add r1, 1
+.end:
+    ret
+
+
+
+do_pixel_mandelbrot:
+    enter r31, r16, r17
+
+    dcall scale_coordinates
+        mov r16, r1
+        mov r17, r2
+    call escape_iterations
+
+    mul r2, r17, MAX_X
+    add r2, r16
+
+    mov r3, g_address
+    store r2, [r3]
+    mov r3, g_data
+    store r1, [r3]
+
+
+    sub r2, (MAX_Y * 2) - 1, r17
+    mul r2, MAX_X
+    add r2, r16
+
+    mov r3, g_address
+    store r2, [r3]
+    mov r3, g_data
+    store r1, [r3]
+
+
+
+    exit r31, r16, r17
+
+
+
+scale_coordinates:
+    shl r1, 16              # Convert x coordinate into signed Q16
+    shl r2, 16              # Convert y coordinate into signed Q16
+
+    mov r3, 1 << 15         # Value of 0.5 in Q16
+    add r1, r3              # Use center of pixel for good symmetry
+    add r2, r3              # Use center of pixel for good symmetry
+
+    idiv r1, MAX_X          # Scale x coordinte into range 0..1
+    idiv r2, MAX_Y * 2      # Scale y coordinte into range 0..1
+
+    mul r1, 3               # Scale x coordinate into range 0..3
+    mul r2, 2               # Scale y coordinate into range 0..2
+
+    mov r3, 2 << 16
+    sub r1, r3              # Scale x coordinate into range -2..1
+    mov r3, 1 << 16
+    sub r2, r3              # Scale y coordinate into range -1..1
+
+
+    dret
+        mul r2, 5           # Scale y coordinate into range -1.25..1.25, in Q18 format
+        sar r2, 2           # Convert back into Q16
+
+escape_iterations:
+    enter r31, r16, r17, r18, r19, r20, r21
+    mov r16, r1         # C.a
+    mov r17, r2         # C.b
+
+    mov r18, 0          # Loop counter
+    mov r19, MAX_ITERATIONS
+
+    mov r20, 0          # Z.a
+    mov r21, 0          # Z.b
+.loop:
+    mov r1, 0
+    jnb r18, r19, .end
+
+    dcall abs_greater_2
+        mov r1, r20
+        mov r2, r21
+    jne r1, r0, .end
+
+    mov r1, r20
+    mov r2, r21
+    dcall do_mandelbrot_iteration
+        mov r3, r16
+        mov r4, r17
+
+    mov r20, r1
+    mov r21, r2
+
+    add r18, 1
+    jmp .loop
+.end:
+    exit r31, r16, r17, r18, r19, r20, r21
+
+
+
+abs_greater_2:
+    enter r31, r16, r17
+    dcall imul_q16
+        mov r16, r2
+        mov r2, r1
+    mov r17, r1
+
+    dcall imul_q16
+        mov r1, r16
+        mov r2, r16
+    add r1, r17
+
+
+    mov r2, 4 << 16     # By comparing directly against four we don't need to do the square root
+    snl r1, r1, r2
+.skip:
+    exit r31, r16, r17
+
+
+# Take z in (r1, r2), c in (r3, r4).
+# Put z^2 + c into (r1, r2)
+do_mandelbrot_iteration:
+    enter r31, r16, r17
+    dcall square_complex_q16
+        mov r16, r3
+        mov r17, r4
+    add r1, r16
+    add r2, r17
+    exit r31, r16, r17
+
+
+square_complex_q16:
+    enter r31, r16, r17, r18
+    mov r16, r1
+    dcall imul_q16
+        mov r17, r2
+        mov r2, r1
+    mov r18, r1
+    dcall imul_q16
+        mov r1, r17
+        mov r2, r17
+    sub r18, r1
+    dcall imul_q16
+        mov r1, r16
+        mov r2, r17
+    shl r2, r1, 1
+    mov r1, r18
+    exit r31, r16, r17, r18
+
+imul_q16:
+    mul r3, r1, r2      # Lower result half
+    imul r4, r1, r2     # Upper result half
+    shr r1, r3, 16
+    dret
+        shl r4, 16
+        or r1, r4
+
+
+equ stack_start 0x20000 # The stack starts at the very end of ram
+
+equ peripherals -65536  # -1 << 16, last 16-bit address range
+equ terminal peripherals
+equ g_address peripherals + 4
+equ g_data peripherals + 8
+equ g_swap peripherals + 12

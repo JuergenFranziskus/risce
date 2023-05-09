@@ -71,6 +71,11 @@ Any bits specified by neither the format nor the opcode should be zero.
     then load a value from the resulting address and store it into the destination.  
     The amount of bytes to load is given by bits 17 thru 18.
 
+- 0x1A: Delayed Jump Absolute (Format B)  
+    Store the address of the next instruction in the destination register.  
+    Then jump to (Source0 + Immediate).  
+    Two delay slots after this instruction are always executed in spite of the branch.
+
 - 0x1B: Jump Absolute (Format B)  
     Store the address of the next instruction in the destination register.  
     Then jump to (Source0 + Immediate).
@@ -101,6 +106,11 @@ Any bits specified by neither the format nor the opcode should be zero.
     Store the address of the next instruction into the Destination register.  
     Then jump to (RIP + Immediate).
 
+- 0x23: Delayed Jump Relative (Format C)  
+    Store the address of the next instruction into the Destination register.  
+    Then jump to (RIP + Immediate).  
+    Two delay slots after this instruction are always executed in spite of the branch.
+
 - 0x30: Store Relative (Format D)  
     Compute an offset, add it onto the address of this instruction
     and store the value of Source1 into the resulting address.  
@@ -119,3 +129,14 @@ Any bits specified by neither the format nor the opcode should be zero.
 - 0x37: Branch Equality (Format D)  
     Compute a condition on Source0 and Source1, and jump to (RIP + Immediate) if it is true.
     The condition is given by bit 22 thru 24 with an offset of 8.
+
+- 0x38: Delayed Branch Relational (Format D)  
+    Compute a condition on Source0 and Source1, and jump to (RIP + Immediate) if it is true.  
+    The condition is given by bits 22 thru 24.  
+    Two delay slots after this instruction are always executed in spite of the branch.
+
+- 0x39: Delayed Branch Equality (Format D)  
+    Compute a condition on Source0 and Source1, and jump to (RIP + Immediate) if it is true.
+    The condition is given by bit 22 thru 24 with an offset of 8.  
+    Two delay slots after this instruction are always executed in spite of the branch.
+

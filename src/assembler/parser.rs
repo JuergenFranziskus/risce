@@ -161,12 +161,17 @@ impl<'a, 'b> Parser<'a, 'b> {
         self.next();
 
         match name.name {
+            "nop" => Mnemonic::Nop,
             "mov" => Mnemonic::Mov,
             "lui" => Mnemonic::Lui,
             "jmp" => Mnemonic::Jmp,
+            "djmp" => Mnemonic::DJmp,
             "jal" => Mnemonic::Jal,
+            "djal" => Mnemonic::DJal,
             "call" => Mnemonic::Call,
+            "dcall" => Mnemonic::DCall,
             "ret" => Mnemonic::Ret,
+            "dret" => Mnemonic::DRet,
             "jeq" => Mnemonic::Branch(Condition::Equal),
             "jne" => Mnemonic::Branch(Condition::NotEqual),
             "jgt" => Mnemonic::Branch(Condition::Greater),
@@ -177,6 +182,18 @@ impl<'a, 'b> Parser<'a, 'b> {
             "jnl" => Mnemonic::Branch(Condition::NotLess),
             "jna" => Mnemonic::Branch(Condition::NotAbove),
             "jnb" => Mnemonic::Branch(Condition::NotBelow),
+
+            "djeq" => Mnemonic::DBranch(Condition::Equal),
+            "djne" => Mnemonic::DBranch(Condition::NotEqual),
+            "djgt" => Mnemonic::DBranch(Condition::Greater),
+            "djlt" => Mnemonic::DBranch(Condition::Less),
+            "dja" =>  Mnemonic::DBranch(Condition::Above),
+            "djb" =>  Mnemonic::DBranch(Condition::Below),
+            "djng" => Mnemonic::DBranch(Condition::NotGreater),
+            "djnl" => Mnemonic::DBranch(Condition::NotLess),
+            "djna" => Mnemonic::DBranch(Condition::NotAbove),
+            "djnb" => Mnemonic::DBranch(Condition::NotBelow),
+
             "store" => Mnemonic::Store,
             "load" => Mnemonic::Load,
             "lea" => Mnemonic::Lea,
@@ -210,8 +227,19 @@ impl<'a, 'b> Parser<'a, 'b> {
             "snl" => Mnemonic::Set(Condition::NotLess),
             "sna" => Mnemonic::Set(Condition::NotAbove),
             "snb" => Mnemonic::Set(Condition::NotBelow),
+            "ceq" => Mnemonic::Choose(Condition::Equal),
+            "cne" => Mnemonic::Choose(Condition::NotEqual),
+            "cgt" => Mnemonic::Choose(Condition::Greater),
+            "clt" => Mnemonic::Choose(Condition::Less),
+            "ca" =>  Mnemonic::Choose(Condition::Above),
+            "cb" =>  Mnemonic::Choose(Condition::Below),
+            "cng" => Mnemonic::Choose(Condition::NotGreater),
+            "cnl" => Mnemonic::Choose(Condition::NotLess),
+            "cna" => Mnemonic::Choose(Condition::NotAbove),
+            "cnb" => Mnemonic::Choose(Condition::NotBelow),
             "enter" => Mnemonic::Enter,
             "leave" => Mnemonic::Leave,
+            "exit" => Mnemonic::Exit,
             a => panic!("{a} is not an instruction mnemonic"),
         }
     }
@@ -325,6 +353,8 @@ impl<'a, 'b> Parser<'a, 'b> {
         let func = match ident.name {
             "low" => Function::Low,
             "high" => Function::High,
+            "udiv" => Function::UDiv,
+            "idiv" => Function::IDiv,
             _ => return None,
         };
         self.next();
@@ -342,6 +372,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                 TokenKind::Plus => BinaryExpr::Add,
                 TokenKind::Minus => BinaryExpr::Sub,
                 TokenKind::Star => BinaryExpr::Mul,
+                TokenKind::DoubleLess => BinaryExpr::Shl,
                 _ => break,
             };
 
@@ -472,6 +503,7 @@ impl<'a, 'b> Parser<'a, 'b> {
 fn infix_binding_power(op: BinaryExpr) -> (i16, i16) {
     use BinaryExpr::*;
     match op {
+        Shl => (-100, -99),
         Add | Sub => (0, 1),
         Mul => (100, 101),
     }

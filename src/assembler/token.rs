@@ -43,6 +43,8 @@ pub enum TokenKind<'a> {
     Star,
     #[token("/")]
     Slash,
+    #[token("<<")]
+    DoubleLess,
 
     #[token("section")]
     Section,
@@ -83,6 +85,7 @@ pub enum TokenKind<'a> {
     #[regex(r"[ \t]+", logos::skip)]
     #[regex(r"#[^\n]*", logos::skip)]
     Error,
+    
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]

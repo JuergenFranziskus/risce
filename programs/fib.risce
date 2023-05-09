@@ -1,25 +1,30 @@
 section text
 start:
-    mov rsp, stack_start
-    mov rbp, rsp
-    mov r1, hello_message
-    call print_string
+    dcall zero_bss
+        mov rsp, stack_start
+        mov rbp, rsp
+    dcall print_string
+        mov r1, hello_message
+        nop
     mov r16, 0
     mov r17, 1
 .loop:
     add r18, r16, r17
-    jb r18, r16, .end
-    mov r1, r18
-    call print_u32
+    dcall print_u32
+        jb r18, r16, .end
+        mov r1, r18
     call print_newline
-    mov r16, r17
-    mov r17, r18
-    jmp .loop
+    djmp .loop
+        mov r16, r17
+        mov r17, r18
 .end:
-    mov r1, goodbye_message
-    call print_string
+    dcall print_string
+        mov r1, goodbye_message
+        nop
 .halt:
     jmp .halt
+
+
 
 
 zero_bss:
@@ -29,9 +34,9 @@ zero_bss:
     add r2, low __bss_end
 .loop:
     jnb r1, r2, .end
-    store r0, byte [r1]
-    add r1, 1
-    jmp .loop
+    djmp .loop
+        store r0, byte [r1]
+        add r1, 1
 .end:
     ret
 
@@ -39,20 +44,22 @@ zero_bss:
 print_string:
     # Pointer to string is in r1, null-terminated
     mov r2, 0 # The byte index
+    mov r3, terminal
 .loop:
     add r4, r1, r2
     load r5, byte [r4]
     add r2, 1
-    jeq r5, r0, .end
-    store r5, byte [terminal]
-    jmp .loop
+    djmp .loop
+        jeq r5, r0, .end
+        store r5, byte [r3]
 .end:
     ret
 
 print_newline:
-    mov r1, 10
-    store r1, [terminal]
-    ret
+    mov r3, terminal
+    dret
+        mov r1, 10
+        store r1, [r3]
 
 
 print_u32:
@@ -69,13 +76,13 @@ print_u32:
     store r2, byte [r3]
 
     jeq r0, r16, .digit_loop_end
-    jeq r0, r17, .digit_loop_end
-    sub r17, 1
-    jmp .digit_loop
+    djmp .digit_loop
+        jeq r0, r17, .digit_loop_end
+        sub r17, 1
 .digit_loop_end:
-    store r0, byte [rsp + 10]
-    add r1, rsp, r17
-    call print_string
+    dcall print_string
+        store r0, byte [rsp + 10]
+        add r1, rsp, r17
     leave r31, r16, r17, r18
     ret
 
@@ -85,9 +92,7 @@ hello_message db "Look at these awesome fibonacci numbers:", 10, 0
 goodbye_message db "All done ^^", 10, 0
 
 
-section bss
-divisors resw 10
-
-
 equ stack_start 0x20000 # The stack starts at the very end of ram
-equ terminal -4 # The terminal is at the very last address
+
+equ peripherals -65536  # -1 << 16, last 16-bit address range
+equ terminal peripherals

@@ -106,6 +106,9 @@ impl<'a> Calculation<'a> {
     pub fn irem(&mut self) {
         self.0.push(Operation::IRem);
     }
+    pub fn shl(&mut self) {
+        self.0.push(Operation::Shl);
+    }
 
     pub fn low(&mut self) {
         self.0.push(Operation::Low);
@@ -120,6 +123,8 @@ impl<'a> Calculation<'a> {
     pub fn global_bss_end(&mut self) {
         self.0.push(Operation::BssEnd);
     }
+
+    
 }
 impl<'a> Default for Calculation<'a> {
     fn default() -> Self {
@@ -161,6 +166,8 @@ pub enum Operation<'a> {
     Rem,
     /// Pop b. Pop a. Push a % b.
     IRem,
+    /// Pop b. Pop a. Push a << b.
+    Shl,
 
     Low,
     High,

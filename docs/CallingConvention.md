@@ -24,6 +24,11 @@ Upon entry to a function, the stack needs to be aligned to four bytes.
 
 # Parameter Passing
 A parameter can only be directly passed to a function if it is smaller than the word size of four bytes.
-If a larger parameter is required, a pointer to it must instead be passed.  
+If a larger parameter is required, a pointer to it is passed instead.  
 The first 6 parameters are passed in the registers r1 thru r6.  
 All other parameters are pushed onto the stack in order from right to left, respecting alignment.
+
+# Return Value
+Return values up to 8 bytes in size are passed in registers r0:r1.  
+If a larger return value is needed, the calling function must allocate space for it on it's stack frame
+and pass a pointer to that as an implicit first parameter.
